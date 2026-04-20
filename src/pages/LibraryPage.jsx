@@ -52,7 +52,7 @@ export default function LibraryPage() {
               key={tag}
               onClick={() => setTag(tag)}
               style={{
-                padding: '7px 16px', borderRadius: 20, border: 'none',
+                padding: '7px 16px', borderRadius: 20,
                 cursor: 'pointer', whiteSpace: 'nowrap',
                 fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',

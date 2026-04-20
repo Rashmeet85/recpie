@@ -191,7 +191,7 @@ function SettingsButton({ onClick, loading, icon, label, sub }) {
   return (
     <button onClick={onClick} disabled={loading} style={{
       display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-      borderRadius: 14, border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left',
+      borderRadius: 14, cursor: 'pointer', width: '100%', textAlign: 'left',
       background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.85)',
       transition: 'background 0.2s', opacity: loading ? 0.7 : 1,
       marginBottom: 2,
