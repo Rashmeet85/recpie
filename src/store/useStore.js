@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import { openDB } from 'idb'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
-import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
 const DB_NAME = 'kaurscakery'
 const STORE_NAME = 'recipes'
 const DB_VERSION = 1
-const ADMIN_EMAILS = ['h.r17731785@gmail.com']
+const OWNER_EMAIL = 'h.r17731785@gmail.com'
+const ROLES_COLLECTION = 'roles'
 
 async function getLocalDB() {
   return openDB(DB_NAME, DB_VERSION, {
@@ -281,6 +282,23 @@ function getRecipesCollection() {
   return collection(db, 'recipes')
 }
 
+function getRolesCollection() {
+  return collection(db, ROLES_COLLECTION)
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
+function sortRoles(roles) {
+  const priority = { owner: 0, admin: 1, viewer: 2 }
+  return [...roles].sort((a, b) => {
+    const roleDiff = (priority[a.role] ?? 9) - (priority[b.role] ?? 9)
+    if (roleDiff !== 0) return roleDiff
+    return a.email.localeCompare(b.email)
+  })
+}
+
 async function loadRemoteRecipes() {
   const snapshot = await getDocs(getRecipesCollection())
   return normalizeRecipes(snapshot.docs.map((entry) => entry.data()))
@@ -294,19 +312,52 @@ async function deleteRemoteRecipe(id) {
   await deleteDoc(doc(db, 'recipes', id))
 }
 
-async function migrateLocalRecipesIfNeeded(isAdmin) {
+async function loadRoleEntries() {
+  const snapshot = await getDocs(getRolesCollection())
+  return sortRoles(snapshot.docs.map((entry) => ({
+    email: entry.id,
+    ...entry.data(),
+  })))
+}
+
+async function loadUserRole(email) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return 'viewer'
+
+  const roleDoc = await getDoc(doc(db, ROLES_COLLECTION, normalizedEmail))
+  return roleDoc.exists() ? roleDoc.data().role || 'viewer' : 'viewer'
+}
+
+async function saveRole(email, role) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return
+
+  await setDoc(doc(db, ROLES_COLLECTION, normalizedEmail), {
+    email: normalizedEmail,
+    role,
+    updatedAt: new Date().toISOString(),
+  })
+}
+
+async function removeRole(email) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return
+  await deleteDoc(doc(db, ROLES_COLLECTION, normalizedEmail))
+}
+
+async function ensureOwnerRole() {
+  await saveRole(OWNER_EMAIL, 'owner')
+}
+
+async function migrateLocalRecipesIfNeeded(canManageRecipes) {
   const remoteRecipes = await loadRemoteRecipes()
-  if (remoteRecipes.length > 0 || !isAdmin) {
+  if (remoteRecipes.length > 0 || !canManageRecipes) {
     return remoteRecipes
   }
 
   const localRecipes = await getLocalRecipes()
   await Promise.all(localRecipes.map((recipe) => saveRemoteRecipe(recipe)))
   return localRecipes
-}
-
-function isAdminUser(user) {
-  return !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
 }
 
 let hasInitializedAuthListener = false
@@ -321,7 +372,10 @@ export const useStore = create((set, get) => ({
   searchQuery: '',
   activeTag: 'All',
   user: null,
+  userRole: 'viewer',
+  isOwner: false,
   isAdmin: false,
+  roleEntries: [],
   authError: '',
 
   init: async () => {
@@ -332,12 +386,16 @@ export const useStore = create((set, get) => ({
     set({ recipes: localRecipes, loading: true })
 
     onAuthStateChanged(auth, async (user) => {
-      const isAdmin = isAdminUser(user)
+      const email = normalizeEmail(user?.email)
+      const isOwner = email === OWNER_EMAIL
 
       if (!user) {
         set({
           user: null,
+          userRole: 'viewer',
+          isOwner: false,
           isAdmin: false,
+          roleEntries: [],
           authReady: true,
           loading: false,
           recipes: localRecipes,
@@ -348,18 +406,36 @@ export const useStore = create((set, get) => ({
         return
       }
 
-      set({ user, isAdmin, loading: true, authReady: true, authError: '' })
+      set({ user, loading: true, authReady: true, authError: '' })
 
       try {
-        const recipes = await migrateLocalRecipesIfNeeded(isAdmin)
+        if (isOwner) {
+          await ensureOwnerRole()
+        }
+
+        const userRole = isOwner ? 'owner' : await loadUserRole(email)
+        const canManageRecipes = isOwner || userRole === 'admin'
+        const roleEntries = isOwner ? await loadRoleEntries() : []
+        const recipes = await migrateLocalRecipesIfNeeded(canManageRecipes)
         await saveLocalRecipes(recipes)
-        set({ recipes, loading: false })
+        set({
+          recipes,
+          loading: false,
+          userRole,
+          isOwner,
+          isAdmin: canManageRecipes,
+          roleEntries,
+        })
       } catch (error) {
         console.error('Cloud load error:', error)
         set({
           recipes: localRecipes,
           loading: false,
-          authError: 'Could not load recipes from Firebase. Showing local recipes for now.',
+          userRole: isOwner ? 'owner' : 'viewer',
+          isOwner,
+          isAdmin: isOwner,
+          roleEntries: [],
+          authError: error?.code ? `Firebase error: ${error.code}` : 'Could not load recipes from Firebase. Showing local recipes for now.',
         })
       }
     })
@@ -371,7 +447,7 @@ export const useStore = create((set, get) => ({
       set({ authError: '' })
     } catch (error) {
       console.error('Sign in error:', error)
-      set({ authError: 'Google sign-in did not complete. Please try again.' })
+      set({ authError: error?.code ? `Google sign-in failed: ${error.code}` : 'Google sign-in did not complete. Please try again.' })
     }
   },
 
@@ -442,6 +518,57 @@ export const useStore = create((set, get) => ({
 
       const matchTag = activeTag === 'All' || recipe.tag === activeTag
       return matchSearch && matchTag
+    })
+  },
+
+  refreshRoles: async () => {
+    const { isOwner } = get()
+    if (!isOwner) return
+
+    const roleEntries = await loadRoleEntries()
+    set({ roleEntries })
+  },
+
+  setUserRole: async (email, role) => {
+    const { isOwner, user } = get()
+    if (!isOwner) return
+
+    const normalizedEmail = normalizeEmail(email)
+    if (!normalizedEmail) return
+
+    const finalRole = normalizedEmail === OWNER_EMAIL ? 'owner' : role
+    await saveRole(normalizedEmail, finalRole)
+
+    const roleEntries = await loadRoleEntries()
+    const currentUserEmail = normalizeEmail(user?.email)
+    const currentUserRole = currentUserEmail === OWNER_EMAIL ? 'owner' : await loadUserRole(currentUserEmail)
+
+    set({
+      roleEntries,
+      userRole: currentUserRole,
+      isOwner: currentUserEmail === OWNER_EMAIL,
+      isAdmin: currentUserEmail === OWNER_EMAIL || currentUserRole === 'admin',
+    })
+  },
+
+  revokeUserRole: async (email) => {
+    const { isOwner, user } = get()
+    if (!isOwner) return
+
+    const normalizedEmail = normalizeEmail(email)
+    if (!normalizedEmail || normalizedEmail === OWNER_EMAIL) return
+
+    await removeRole(normalizedEmail)
+
+    const roleEntries = await loadRoleEntries()
+    const currentUserEmail = normalizeEmail(user?.email)
+    const currentUserRole = currentUserEmail === OWNER_EMAIL ? 'owner' : await loadUserRole(currentUserEmail)
+
+    set({
+      roleEntries,
+      userRole: currentUserRole,
+      isOwner: currentUserEmail === OWNER_EMAIL,
+      isAdmin: currentUserEmail === OWNER_EMAIL || currentUserRole === 'admin',
     })
   },
 }))

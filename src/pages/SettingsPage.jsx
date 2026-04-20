@@ -7,11 +7,27 @@ function isStandaloneMode() {
 }
 
 export default function SettingsPage() {
-  const { recipes, deleteRecipe, user, isAdmin, signOutUser, authError } = useStore()
+  const {
+    recipes,
+    deleteRecipe,
+    user,
+    userRole,
+    isOwner,
+    isAdmin,
+    roleEntries,
+    signOutUser,
+    authError,
+    setUserRole,
+    revokeUserRole,
+  } = useStore()
+
   const [exporting, setExporting] = useState(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [installPromptEvent, setInstallPromptEvent] = useState(null)
   const [isInstalled, setIsInstalled] = useState(isStandaloneMode())
+  const [roleEmail, setRoleEmail] = useState('')
+  const [roleValue, setRoleValue] = useState('admin')
+  const [savingRole, setSavingRole] = useState(false)
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event) => {
@@ -97,6 +113,24 @@ export default function SettingsPage() {
     setInstallPromptEvent(null)
   }
 
+  const handleSaveRole = async () => {
+    if (!isOwner || !roleEmail.trim()) return
+
+    setSavingRole(true)
+    try {
+      await setUserRole(roleEmail, roleValue)
+      setRoleEmail('')
+    } finally {
+      setSavingRole(false)
+    }
+  }
+
+  const roleSummary = isOwner
+    ? 'Owner access enabled. You can manage user roles, recipes, imports, and deletes.'
+    : isAdmin
+      ? 'Admin access enabled. You can create, edit, import, and delete recipes.'
+      : 'Viewer access enabled. You can browse and export recipes.'
+
   return (
     <div style={{ padding: '56px 20px 24px' }}>
       <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.02s' }}>
@@ -108,15 +142,18 @@ export default function SettingsPage() {
         </h1>
       </div>
 
-      <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.06s', marginBottom: 24, background: 'linear-gradient(135deg, rgba(255,224,245,0.52), rgba(220,227,255,0.48))', border: '1px solid rgba(255,255,255,0.58)', borderRadius: 24, padding: 20, backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-soft)' }}>
+      <GlassCard delay="0.06s">
         <p style={{ margin: '0 0 6px', fontFamily: 'var(--font-body)', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--light-warm)', fontWeight: 600 }}>
           Signed In As
         </p>
         <h2 style={{ margin: '0 0 6px', fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 600, color: 'var(--charcoal)' }}>
           {user?.displayName || user?.email || 'Google User'}
         </h2>
-        <p style={{ margin: '0 0 14px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--warm-gray)' }}>
-          {isAdmin ? 'Admin access enabled. You can create, edit, import, and delete recipes.' : 'Viewer access enabled. You can browse and export recipes.'}
+        <p style={{ margin: '0 0 10px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--warm-gray)' }}>
+          {roleSummary}
+        </p>
+        <p style={{ margin: '0 0 14px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+          Current role: {userRole}
         </p>
         <button
           onClick={signOutUser}
@@ -129,17 +166,17 @@ export default function SettingsPage() {
             {authError}
           </p>
         )}
-      </div>
+      </GlassCard>
 
-      <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.08s', marginBottom: 24, background: 'linear-gradient(135deg, rgba(255,224,245,0.52), rgba(220,227,255,0.48))', border: '1px solid rgba(255,255,255,0.58)', borderRadius: 24, padding: 20, backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-soft)' }}>
+      <GlassCard delay="0.08s">
         <div style={{ display: 'flex', justifyContent: 'space-around' }}>
           <StatItem value={recipes.length} label="Recipes" />
-          <div style={{ width: 1, background: 'rgba(201,169,110,0.3)' }} />
+          <div style={{ width: 1, background: 'rgba(201,169,110,0.18)' }} />
           <StatItem value={[...new Set(recipes.map((recipe) => recipe.tag))].filter(Boolean).length} label="Categories" />
-          <div style={{ width: 1, background: 'rgba(201,169,110,0.3)' }} />
+          <div style={{ width: 1, background: 'rgba(201,169,110,0.18)' }} />
           <StatItem value={recipes.reduce((sum, recipe) => sum + (recipe.ingredients?.length || 0), 0)} label="Ingredients" />
         </div>
-      </div>
+      </GlassCard>
 
       <SettingsSection title="Export Collection" icon="📥" delay="0.12s">
         <SettingsButton onClick={() => handleExport('pdf')} loading={exporting === 'pdf'} icon="📄" label="Export all as PDF" sub={`${recipes.length} recipes -> styled PDF`} />
@@ -153,7 +190,7 @@ export default function SettingsPage() {
           disabled={!installPromptEvent || isInstalled}
           icon="⬇️"
           label={isInstalled ? 'App already installed' : 'Install this app'}
-          sub={isInstalled ? 'The PWA is already installed on this device.' : installPromptEvent ? 'Add Kaur\'s Cakery to your home screen.' : 'Install becomes available when the browser allows it.'}
+          sub={isInstalled ? 'The PWA is already installed on this device.' : installPromptEvent ? "Add Kaur's Cakery to your home screen." : 'Install becomes available when the browser allows it.'}
         />
       </SettingsSection>
 
@@ -173,23 +210,97 @@ export default function SettingsPage() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--light-warm)" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
           </label>
 
-          <SettingsButton
-            onClick={() => setShowClearConfirm(true)}
-            icon="🗑️"
-            label="Clear all recipes"
-            sub="Remove every recipe from Firebase and this device"
-          />
+          <SettingsButton onClick={() => setShowClearConfirm(true)} icon="🗑️" label="Clear all recipes" sub="Remove every recipe from Firebase and this device" />
         </SettingsSection>
       )}
 
-      <SettingsSection title="About" icon="🎂" delay={isAdmin ? '0.24s' : '0.2s'}>
+      {isOwner && (
+        <SettingsSection title="Access Control" icon="👑" delay={isAdmin ? '0.24s' : '0.2s'}>
+          <div style={{ padding: 18, background: 'rgba(255,255,255,0.52)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)' }}>
+            <p style={{ margin: '0 0 12px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--warm-gray)', lineHeight: 1.6 }}>
+              Add or update a user by email. `admin` can manage recipes. `viewer` can only browse and export. Your owner role cannot be revoked here.
+            </p>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+              <input
+                className="input-field"
+                value={roleEmail}
+                onChange={(event) => setRoleEmail(event.target.value)}
+                placeholder="user@gmail.com"
+                style={{ flex: '1 1 220px' }}
+              />
+              <select
+                className="input-field"
+                value={roleValue}
+                onChange={(event) => setRoleValue(event.target.value)}
+                style={{ flex: '0 0 140px', appearance: 'none' }}
+              >
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button
+                onClick={handleSaveRole}
+                disabled={savingRole || !roleEmail.trim()}
+                style={{
+                  padding: '13px 18px',
+                  borderRadius: 16,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                  color: 'white',
+                  fontFamily: 'var(--font-body)',
+                  fontWeight: 600,
+                  cursor: savingRole || !roleEmail.trim() ? 'default' : 'pointer',
+                  opacity: savingRole || !roleEmail.trim() ? 0.7 : 1,
+                  boxShadow: '0 14px 30px rgba(142,106,232,0.2)',
+                }}
+              >
+                {savingRole ? 'Saving...' : 'Save Role'}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {roleEntries.map((entry) => {
+                const canRevoke = entry.role !== 'owner'
+                return (
+                  <div key={entry.email} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.58)', border: '1px solid rgba(255,255,255,0.62)', borderRadius: 18, padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: '0 0 4px', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--charcoal)', wordBreak: 'break-all' }}>{entry.email}</p>
+                      <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{entry.role}</p>
+                    </div>
+                    {canRevoke ? (
+                      <>
+                        <button
+                          onClick={() => setUserRole(entry.email, entry.role === 'admin' ? 'viewer' : 'admin')}
+                          style={{ padding: '8px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.7)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          Make {entry.role === 'admin' ? 'Viewer' : 'Admin'}
+                        </button>
+                        <button
+                          onClick={() => revokeUserRole(entry.email)}
+                          style={{ padding: '8px 12px', borderRadius: 12, border: 'none', background: 'rgba(224,90,58,0.12)', color: '#c24a2d', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          Revoke
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, color: 'var(--rose)' }}>Owner</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </SettingsSection>
+      )}
+
+      <SettingsSection title="About" icon="🎂" delay={isOwner ? '0.28s' : isAdmin ? '0.24s' : '0.2s'}>
         <div style={{ padding: '18px', background: 'rgba(255,255,255,0.52)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)' }}>
           <h3 style={{ margin: '0 0 4px', fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600 }}>Kaur&apos;s Cakery</h3>
           <p style={{ margin: '0 0 12px', fontFamily: 'var(--font-body)', fontSize: 13, fontStyle: 'italic', color: 'var(--warm-gray)' }}>
             Crafted with love, baked with passion
           </p>
           <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--light-warm)', lineHeight: 1.6 }}>
-            Recipes are now backed by Firebase so they stay available across devices and after local storage is cleared.
+            Recipes and roles are backed by Firebase so they stay available across devices and after local storage is cleared.
           </p>
         </div>
       </SettingsSection>
@@ -222,6 +333,14 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function GlassCard({ delay, children }) {
+  return (
+    <div className="animate-fade-up" style={{ opacity: 0, animationDelay: delay, marginBottom: 24, background: 'linear-gradient(135deg, rgba(255,224,245,0.52), rgba(220,227,255,0.48))', border: '1px solid rgba(255,255,255,0.58)', borderRadius: 24, padding: 20, backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-soft)' }}>
+      {children}
     </div>
   )
 }
@@ -281,7 +400,7 @@ function SettingsButton({ onClick, loading, disabled, icon, label, sub }) {
         <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)' }}>{sub}</p>
       </div>
       {loading
-        ? <div style={{ width: 18, height: 18, border: '2px solid rgba(212,136,106,0.2)', borderTopColor: 'var(--rose)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        ? <div style={{ width: 18, height: 18, border: '2px solid rgba(180,149,255,0.2)', borderTopColor: 'var(--rose)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--light-warm)" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
       }
     </button>
