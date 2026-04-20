@@ -34,7 +34,7 @@ const EMPTY_FORM = {
 }
 
 export default function AddRecipePage() {
-  const { setPage, addRecipe, updateRecipe, editingRecipe } = useStore()
+  const { setPage, addRecipe, updateRecipe, editingRecipe, isAdmin } = useStore()
   const isEditing = !!editingRecipe
   const [form, setForm] = useState(isEditing ? {
     ...editingRecipe,
@@ -45,6 +45,16 @@ export default function AddRecipePage() {
   const [saving, setSaving] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setPage('library')
+    }
+  }, [isAdmin, setPage])
+
+  if (!isAdmin) {
+    return null
+  }
 
   const update = (field, value) => setForm(f => ({ ...f, [field]: value }))
 
@@ -98,10 +108,10 @@ export default function AddRecipePage() {
       {/* Header */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(249,243,238,0.92)',
+        background: 'rgba(250,248,255,0.74)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(201,169,110,0.15)',
+        borderBottom: '1px solid rgba(255,255,255,0.55)',
         padding: '54px 20px 16px',
         display: 'flex', alignItems: 'center', gap: 12,
       }} className="no-print">
@@ -116,10 +126,10 @@ export default function AddRecipePage() {
           disabled={saving}
           style={{
             padding: '10px 22px', borderRadius: 12, border: 'none',
-            background: 'linear-gradient(135deg, #d4886a, #b8614a)',
+            background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
             color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600,
             fontSize: 14, cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(212,136,106,0.4)',
+            boxShadow: '0 12px 24px rgba(142, 106, 232, 0.24)',
             opacity: saving ? 0.7 : 1,
             transition: 'opacity 0.2s',
           }}
@@ -138,7 +148,7 @@ export default function AddRecipePage() {
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 style={{
                   width: 64, height: 64, borderRadius: 18, border: '1.5px solid rgba(201,169,110,0.3)',
-                  background: 'rgba(255,255,255,0.7)', fontSize: 30, cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.5)', fontSize: 30, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   backdropFilter: 'blur(10px)',
                 }}
@@ -148,15 +158,15 @@ export default function AddRecipePage() {
               {showEmojiPicker && (
                 <div style={{
                   position: 'absolute', top: 70, left: 0, zIndex: 60,
-                  background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(201,169,110,0.3)', borderRadius: 16,
+                  background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(255,255,255,0.58)', borderRadius: 18,
                   padding: 12, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6,
                   boxShadow: '0 8px 32px rgba(45,40,38,0.15)', width: 160,
                 }}>
                   {EMOJIS.map(e => (
                     <button key={e} onClick={() => { update('emoji', e); setShowEmojiPicker(false) }}
                       style={{ fontSize: 24, background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: 8, transition: 'background 0.15s' }}
-                      onMouseOver={ev => ev.target.style.background = 'rgba(212,136,106,0.1)'}
+                      onMouseOver={ev => ev.target.style.background = 'rgba(180,149,255,0.14)'}
                       onMouseOut={ev => ev.target.style.background = 'none'}
                     >{e}</button>
                   ))}
@@ -179,9 +189,9 @@ export default function AddRecipePage() {
               <button key={tag} onClick={() => update('tag', tag)} style={{
                 padding: '8px 16px', borderRadius: 20, border: '1.5px solid',
                 cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
-                background: form.tag === tag ? 'linear-gradient(135deg, #d4886a, #b8614a)' : 'rgba(255,255,255,0.7)',
+                background: form.tag === tag ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)' : 'rgba(255,255,255,0.55)',
                 color: form.tag === tag ? 'white' : 'var(--warm-gray)',
-                borderColor: form.tag === tag ? 'transparent' : 'rgba(201,169,110,0.3)',
+                borderColor: form.tag === tag ? 'transparent' : 'rgba(255,255,255,0.58)',
                 transition: 'all 0.2s',
               }}>{tag}</button>
             ))}
@@ -229,7 +239,7 @@ export default function AddRecipePage() {
             onChange={e => update('ingredientNote', e.target.value)} style={{ marginTop: 8, fontSize: 13 }} />
           <button onClick={addIngredient} style={{
             marginTop: 10, padding: '10px', borderRadius: 12, border: '1.5px dashed rgba(212,136,106,0.4)',
-            background: 'rgba(212,136,106,0.06)', color: 'var(--rose)', cursor: 'pointer',
+            background: 'rgba(255,143,220,0.08)', color: 'var(--rose)', cursor: 'pointer',
             fontFamily: 'var(--font-body)', fontSize: 13, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
             <PlusIcon /> Add Ingredient
@@ -244,7 +254,7 @@ export default function AddRecipePage() {
               <div key={step.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <span style={{
                   minWidth: 28, height: 28, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, rgba(212,136,106,0.15), rgba(201,169,110,0.15))',
+                  background: 'linear-gradient(135deg, rgba(255,143,220,0.16), rgba(157,124,255,0.16))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 12, fontWeight: 700, color: 'var(--rose)', flexShrink: 0, marginTop: 10,
                   fontFamily: 'var(--font-body)',
@@ -262,7 +272,7 @@ export default function AddRecipePage() {
           {errors.method && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#e05a3a', fontFamily: 'var(--font-body)' }}>{errors.method}</p>}
           <button onClick={addStep} style={{
             marginTop: 10, padding: '10px', borderRadius: 12, border: '1.5px dashed rgba(143,166,139,0.4)',
-            background: 'rgba(143,166,139,0.06)', color: 'var(--sage)', cursor: 'pointer',
+            background: 'rgba(138,167,255,0.08)', color: 'var(--sage)', cursor: 'pointer',
             fontFamily: 'var(--font-body)', fontSize: 13, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
             <PlusIcon /> Add Step
@@ -290,9 +300,9 @@ export default function AddRecipePage() {
             disabled={saving}
             style={{
               width: '100%', padding: '16px', borderRadius: 16, border: 'none',
-              background: 'linear-gradient(135deg, #d4886a, #b8614a)',
+              background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
               color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 16,
-              cursor: 'pointer', boxShadow: '0 6px 20px rgba(212,136,106,0.4)',
+              cursor: 'pointer', boxShadow: '0 14px 28px rgba(142,106,232,0.24)',
               opacity: saving ? 0.7 : 1, transition: 'opacity 0.2s, transform 0.1s',
             }}
             onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}

@@ -11,14 +11,14 @@ export default function RecipeCard({ recipe, index }) {
       style={{
         animationDelay: `${index * 0.05}s`,
         opacity: 0,
-        background: 'rgba(255,255,255,0.65)',
-        backdropFilter: 'blur(20px) saturate(1.8)',
-        WebkitBackdropFilter: 'blur(20px) saturate(1.8)',
-        border: '1px solid rgba(255,255,255,0.85)',
-        borderRadius: 20,
+        background: 'rgba(255,255,255,0.5)',
+        backdropFilter: 'blur(22px) saturate(1.2)',
+        WebkitBackdropFilter: 'blur(22px) saturate(1.2)',
+        border: '1px solid rgba(255,255,255,0.58)',
+        borderRadius: 24,
         padding: '18px 20px',
         cursor: 'pointer',
-        boxShadow: '0 2px 16px rgba(45,40,38,0.07)',
+        boxShadow: 'var(--shadow-soft)',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -26,7 +26,7 @@ export default function RecipeCard({ recipe, index }) {
       {/* Subtle gradient accent */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-        background: 'linear-gradient(90deg, var(--rose), var(--gold))',
+        background: 'linear-gradient(90deg, #ff8fdc, #b79bff, #8aa7ff)',
         opacity: 0.7, borderRadius: '20px 20px 0 0'
       }} />
 
@@ -34,10 +34,10 @@ export default function RecipeCard({ recipe, index }) {
         {/* Emoji badge */}
         <div style={{
           width: 52, height: 52, borderRadius: 16,
-          background: 'linear-gradient(135deg, rgba(242,217,208,0.8), rgba(232,213,176,0.6))',
+          background: 'linear-gradient(135deg, rgba(255,218,241,0.92), rgba(198,211,255,0.82))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 26, flexShrink: 0,
-          boxShadow: '0 2px 8px rgba(212,136,106,0.2)',
+          boxShadow: '0 8px 18px rgba(127, 102, 212, 0.14)',
         }}>
           {recipe.emoji || '🍴'}
         </div>

@@ -20,7 +20,7 @@ function DownloadIcon() {
 }
 
 export default function RecipeViewPage() {
-  const { selectedRecipe, setPage, deleteRecipe, recipes } = useStore()
+  const { selectedRecipe, setPage, deleteRecipe, recipes, isAdmin } = useStore()
   const recipe = selectedRecipe
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -66,10 +66,10 @@ export default function RecipeViewPage() {
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          background: 'rgba(249,243,238,0.92)',
+          background: 'rgba(250,248,255,0.74)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(201,169,110,0.15)',
+          borderBottom: '1px solid rgba(255,255,255,0.55)',
           padding: '54px 20px 14px',
           display: 'flex',
           alignItems: 'center',
@@ -90,8 +90,8 @@ export default function RecipeViewPage() {
               gap: 6,
               padding: '8px 14px',
               borderRadius: 10,
-              background: 'rgba(255,255,255,0.7)',
-              border: '1.5px solid rgba(201,169,110,0.3)',
+              background: 'rgba(255,255,255,0.55)',
+              border: '1px solid rgba(255,255,255,0.58)',
               cursor: 'pointer',
               fontFamily: 'var(--font-body)',
               fontSize: 13,
@@ -109,12 +109,12 @@ export default function RecipeViewPage() {
                 right: 0,
                 top: 44,
                 zIndex: 100,
-                background: 'rgba(255,255,255,0.97)',
+                background: 'rgba(255,255,255,0.8)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(201,169,110,0.25)',
+                border: '1px solid rgba(255,255,255,0.58)',
                 borderRadius: 14,
-                boxShadow: '0 8px 32px rgba(45,40,38,0.15)',
+                boxShadow: 'var(--shadow-soft)',
                 overflow: 'hidden',
                 minWidth: 200,
               }}
@@ -142,7 +142,7 @@ export default function RecipeViewPage() {
                     borderBottom: '1px solid rgba(201,169,110,0.1)',
                     transition: 'background 0.15s',
                   }}
-                  onMouseOver={(event) => { event.currentTarget.style.background = 'rgba(212,136,106,0.08)' }}
+                  onMouseOver={(event) => { event.currentTarget.style.background = 'rgba(180,149,255,0.12)' }}
                   onMouseOut={(event) => { event.currentTarget.style.background = 'none' }}
                 >
                   {option.label}
@@ -152,12 +152,16 @@ export default function RecipeViewPage() {
           )}
         </div>
 
-        <button onClick={() => setPage('add', { editing: recipe })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warm-gray)', padding: 6 }}>
-          <EditIcon />
-        </button>
-        <button onClick={() => setShowDeleteConfirm(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e05a3a', padding: 6 }}>
-          <TrashIcon />
-        </button>
+        {isAdmin && (
+          <>
+            <button onClick={() => setPage('add', { editing: recipe })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warm-gray)', padding: 6 }}>
+              <EditIcon />
+            </button>
+            <button onClick={() => setShowDeleteConfirm(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e05a3a', padding: 6 }}>
+              <TrashIcon />
+            </button>
+          </>
+        )}
       </div>
 
       <div style={{ padding: '0 20px 32px' }}>
@@ -168,12 +172,12 @@ export default function RecipeViewPage() {
               height: 84,
               borderRadius: 24,
               margin: '0 auto 16px',
-              background: 'linear-gradient(135deg, rgba(242,217,208,0.9), rgba(232,213,176,0.7))',
+              background: 'linear-gradient(135deg, rgba(255,218,241,0.92), rgba(196,210,255,0.84))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 44,
-              boxShadow: '0 8px 24px rgba(212,136,106,0.2)',
+              boxShadow: '0 14px 34px rgba(122, 96, 209, 0.16)',
             }}
           >
             {scaledRecipe.emoji || '🍴'}
@@ -212,13 +216,13 @@ export default function RecipeViewPage() {
             {scaledRecipe.name}
           </h1>
 
-          <div style={{ marginTop: 12, height: 1.5, background: 'linear-gradient(90deg, transparent, var(--gold), transparent)' }} />
+          <div style={{ marginTop: 12, height: 1.5, background: 'linear-gradient(90deg, transparent, #c79fff, transparent)' }} />
         </div>
 
         <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.08s', marginBottom: 24 }}>
           <div
             style={{
-              background: 'rgba(255,255,255,0.65)',
+              background: 'rgba(255,255,255,0.52)',
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid rgba(255,255,255,0.85)',
@@ -241,7 +245,7 @@ export default function RecipeViewPage() {
                   padding: '8px 12px',
                   borderRadius: 10,
                   border: '1px solid rgba(201,169,110,0.25)',
-                  background: 'rgba(249,243,238,0.9)',
+                  background: 'rgba(255,255,255,0.62)',
                   color: 'var(--warm-gray)',
                   cursor: 'pointer',
                   fontFamily: 'var(--font-body)',
@@ -277,11 +281,11 @@ export default function RecipeViewPage() {
                 <div
                   key={index}
                   style={{
-                    background: 'rgba(242,217,208,0.55)',
-                    borderRadius: 14,
+                    background: 'rgba(255,255,255,0.52)',
+                    borderRadius: 18,
                     padding: '12px 8px',
                     textAlign: 'center',
-                    border: '1px solid rgba(242,217,208,0.8)',
+                    border: '1px solid rgba(255,255,255,0.58)',
                     backdropFilter: 'blur(10px)',
                   }}
                 >
@@ -298,7 +302,7 @@ export default function RecipeViewPage() {
             <SectionHeader icon="🌾" title="Ingredients" color="var(--rose)" />
             <div
               style={{
-                background: 'rgba(255,255,255,0.65)',
+                background: 'rgba(255,255,255,0.52)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
                 border: '1px solid rgba(255,255,255,0.85)',
@@ -345,8 +349,8 @@ export default function RecipeViewPage() {
                       minWidth: 30,
                       height: 30,
                       borderRadius: '50%',
-                      background: 'linear-gradient(135deg, rgba(212,136,106,0.15), rgba(201,169,110,0.15))',
-                      border: '1.5px solid rgba(212,136,106,0.25)',
+                      background: 'linear-gradient(135deg, rgba(255,143,220,0.16), rgba(157,124,255,0.16))',
+                      border: '1.5px solid rgba(180,149,255,0.22)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -370,8 +374,8 @@ export default function RecipeViewPage() {
           <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.25s', marginBottom: 28 }}>
             <div
               style={{
-                background: 'linear-gradient(135deg, rgba(232,213,176,0.5), rgba(242,217,208,0.4))',
-                border: '1px solid rgba(201,169,110,0.35)',
+                background: 'linear-gradient(135deg, rgba(255,224,245,0.68), rgba(219,225,255,0.65))',
+                border: '1px solid rgba(255,255,255,0.55)',
                 borderRadius: 16,
                 padding: '16px 18px',
                 backdropFilter: 'blur(10px)',
@@ -389,7 +393,7 @@ export default function RecipeViewPage() {
           <SectionHeader icon="📝" title="My Notes" color="var(--light-warm)" />
           <div
             style={{
-              background: 'rgba(255,255,255,0.55)',
+              background: 'rgba(255,255,255,0.5)',
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid rgba(255,255,255,0.8)',
@@ -423,7 +427,7 @@ export default function RecipeViewPage() {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(45,40,38,0.5)',
+            background: 'rgba(33,24,67,0.34)',
             backdropFilter: 'blur(4px)',
             zIndex: 200,
             display: 'flex',
@@ -435,7 +439,7 @@ export default function RecipeViewPage() {
           <div
             onClick={(event) => event.stopPropagation()}
             style={{
-              background: 'rgba(249,243,238,0.98)',
+              background: 'rgba(248,246,255,0.88)',
               backdropFilter: 'blur(20px)',
               borderRadius: '24px 24px 0 0',
               padding: '24px 20px 32px',

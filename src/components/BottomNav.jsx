@@ -29,21 +29,23 @@ function SettingsIcon({ active }) {
 }
 
 export default function BottomNav() {
-  const { currentPage, setPage } = useStore()
+  const { currentPage, setPage, isAdmin } = useStore()
+  const navItems = isAdmin ? NAV_ITEMS : NAV_ITEMS.filter(item => !item.isFab)
 
   return (
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0,
       paddingBottom: 'env(safe-area-inset-bottom)',
-      background: 'rgba(249,243,238,0.85)',
-      backdropFilter: 'blur(24px) saturate(1.8)',
-      WebkitBackdropFilter: 'blur(24px) saturate(1.8)',
-      borderTop: '1px solid rgba(201,169,110,0.2)',
+      background: 'rgba(255,255,255,0.42)',
+      backdropFilter: 'blur(28px) saturate(1.5)',
+      WebkitBackdropFilter: 'blur(28px) saturate(1.5)',
+      borderTop: '1px solid rgba(255,255,255,0.5)',
+      boxShadow: '0 -12px 30px rgba(86, 61, 160, 0.08)',
       zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'space-around',
       height: 64,
     }} className="no-print">
-      {NAV_ITEMS.map(item => {
+      {navItems.map(item => {
         if (item.isFab) {
           return (
             <button
@@ -51,11 +53,11 @@ export default function BottomNav() {
               onClick={() => setPage('add')}
               style={{
                 width: 52, height: 52, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #d4886a, #b8614a)',
+                background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
                 border: 'none', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'white',
-                boxShadow: '0 4px 16px rgba(212,136,106,0.45)',
+                boxShadow: '0 12px 28px rgba(142, 106, 232, 0.34)',
                 transform: currentPage === 'add' ? 'rotate(45deg)' : 'rotate(0deg)',
                 transition: 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s',
                 WebkitTapHighlightColor: 'transparent',

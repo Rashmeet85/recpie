@@ -19,7 +19,7 @@ export default function LibraryPage() {
       {/* Header */}
       <div style={{
         padding: '56px 20px 0',
-        background: 'linear-gradient(180deg, rgba(249,243,238,1) 70%, rgba(249,243,238,0) 100%)',
+        background: 'linear-gradient(180deg, rgba(250,248,255,0.92) 70%, rgba(250,248,255,0) 100%)',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
         <div className="animate-fade-up" style={{ animationDelay: '0s', opacity: 0 }}>
@@ -57,11 +57,11 @@ export default function LibraryPage() {
                 fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
                 background: activeTag === tag
-                  ? 'linear-gradient(135deg, #d4886a, #b8614a)'
-                  : 'rgba(255,255,255,0.7)',
+                  ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)'
+                  : 'rgba(255,255,255,0.55)',
                 color: activeTag === tag ? 'white' : 'var(--warm-gray)',
-                border: activeTag === tag ? 'none' : '1px solid rgba(201,169,110,0.25)',
-                boxShadow: activeTag === tag ? '0 4px 12px rgba(212,136,106,0.35)' : 'none',
+                border: activeTag === tag ? 'none' : '1px solid rgba(255,255,255,0.58)',
+                boxShadow: activeTag === tag ? '0 10px 24px rgba(142, 106, 232, 0.24)' : '0 6px 14px rgba(94, 61, 165, 0.06)',
                 WebkitTapHighlightColor: 'transparent',
               }}
             >
@@ -75,7 +75,7 @@ export default function LibraryPage() {
       <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--light-warm)' }}>
-            <div style={{ width: 32, height: 32, border: '3px solid rgba(212,136,106,0.2)', borderTopColor: 'var(--rose)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+            <div style={{ width: 32, height: 32, border: '3px solid rgba(180,149,255,0.2)', borderTopColor: 'var(--rose)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 14 }}>Loading recipes…</p>
           </div>
         ) : filtered.length === 0 ? (

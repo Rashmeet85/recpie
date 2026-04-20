@@ -1,21 +1,24 @@
 import { create } from 'zustand'
 import { openDB } from 'idb'
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore'
+import { auth, db, googleProvider } from '../lib/firebase'
 
 const DB_NAME = 'kaurscakery'
 const STORE_NAME = 'recipes'
 const DB_VERSION = 1
+const ADMIN_EMAILS = ['h.r17731785@gmail.com']
 
-async function getDB() {
+async function getLocalDB() {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' })
+    upgrade(database) {
+      if (!database.objectStoreNames.contains(STORE_NAME)) {
+        database.createObjectStore(STORE_NAME, { keyPath: 'id' })
       }
-    }
+    },
   })
 }
 
-// Seed data from the uploaded recipe book
 const SEED_RECIPES = [
   {
     id: 'seed-1',
@@ -25,37 +28,37 @@ const SEED_RECIPES = [
     createdAt: new Date('2024-01-01').toISOString(),
     meta: [
       { label: 'Total Dough', value: '~329 g' },
-      { label: 'Medium Buns', value: '80g × 4 pcs' },
-      { label: 'Small Buns', value: '65g × 5 pcs' },
+      { label: 'Medium Buns', value: '80 g × 4 pcs' },
+      { label: 'Small Buns', value: '65 g × 5 pcs' },
       { label: 'Bake Temp', value: '200°C' },
     ],
     ingredients: [
-      { name: 'Maida (All-purpose flour)', amount: '180 g' },
+      { name: 'Maida (all-purpose flour)', amount: '180 g' },
       { name: 'Yeast', amount: '3.6 g' },
       { name: 'Sugar (powdered)', amount: '18 g' },
-      { name: 'Milk Powder', amount: '12.56 g' },
-      { name: 'Unsalted Butter', amount: '12.56 g' },
+      { name: 'Milk powder', amount: '12.56 g' },
+      { name: 'Unsalted butter', amount: '12.56 g' },
       { name: 'Salt', amount: '3.6 g' },
       { name: 'Water', amount: '~99 g' },
-      { name: 'White Sesame Seeds', amount: 'for topping' },
+      { name: 'White sesame seeds', amount: 'for topping' },
     ],
-    ingredientNote: 'Milk Wash: ¼ cup milk + 1 tsp sugar or honey',
+    ingredientNote: 'Milk wash: 1/4 cup milk + 1 tsp sugar or honey',
     method: [
       'In a bowl, add maida, yeast, sugar, and milk powder. Mix well.',
-      'Add about ¾ of the water and start mixing.',
+      'Add about 3/4 of the water and start mixing.',
       'Knead the dough by hand or in a stand mixer.',
-      'Add remaining water gradually if needed to make a soft (not dry) dough.',
+      'Add remaining water gradually if needed to make a soft dough.',
       'Once the dough is about 70% kneaded, add soft butter and knead again.',
-      'Add salt and continue kneading till smooth.',
-      'Check for windowpane stage (dough should stretch thin without tearing).',
-      'Cover and rest the dough for 20–30 minutes.',
-      'Divide into portions, shape into buns, and place on tray.',
-      'Proof for 25–30 minutes or till doubled.',
+      'Add salt and continue kneading until smooth.',
+      'Check for the windowpane stage.',
+      'Cover and rest the dough for 20-30 minutes.',
+      'Divide into portions, shape into buns, and place on the tray.',
+      'Proof for 25-30 minutes until doubled.',
       'Apply milk wash and sprinkle sesame seeds on top.',
       'Bake at 200°C until golden brown.',
     ],
-    tips: "Dough should be soft and slightly sticky, not dry. Do not overproof, or buns may collapse. Brush with butter after baking for extra softness.",
-    notes: ''
+    tips: 'Keep the dough soft and slightly sticky, not dry. Brush with butter after baking for extra softness.',
+    notes: '',
   },
   {
     id: 'seed-2',
@@ -64,35 +67,35 @@ const SEED_RECIPES = [
     tag: 'Bread',
     createdAt: new Date('2024-01-02').toISOString(),
     meta: [
-      { label: 'Flour', value: '300 g WWF' },
-      { label: 'Liquid', value: '120ml Water + 96ml Milk' },
-      { label: 'Yeast', value: '6 g Instant' },
-      { label: 'Bake', value: '200°C / 25–30 min' },
+      { label: 'Flour', value: '300 g whole wheat flour' },
+      { label: 'Liquid', value: '120 ml water + 96 ml milk' },
+      { label: 'Yeast', value: '6 g instant' },
+      { label: 'Bake', value: '200°C / 25-30 min' },
     ],
     ingredients: [
       { name: 'Whole wheat flour', amount: '300 g' },
       { name: 'Instant yeast', amount: '6 g' },
       { name: 'Salt', amount: '6 g' },
-      { name: 'Honey/Sugar', amount: '18 g' },
+      { name: 'Honey or sugar', amount: '18 g' },
       { name: 'Warm water', amount: '120 ml' },
       { name: 'Warm milk', amount: '96 ml' },
       { name: 'Oil', amount: '6 ml' },
       { name: 'Softened butter', amount: '12 ml' },
-      { name: 'Seeds (for topping)', amount: 'as required' },
+      { name: 'Seeds', amount: 'as required' },
     ],
     ingredientNote: '',
     method: [
-      'In a bowl, combine whole wheat flour, instant yeast, honey/sugar, and oil.',
-      'Add warm water and warm milk. Mix everything properly to form a dough.',
-      'Knead the dough well until it starts coming together. Add extra water if required.',
+      'Combine whole wheat flour, instant yeast, honey or sugar, and oil.',
+      'Add warm water and warm milk. Mix to form a dough.',
+      'Knead until it starts coming together. Add extra water if required.',
       'Add softened butter and continue kneading.',
-      'Add salt and knead further until you achieve a smooth dough (windowpane stage).',
-      'Cover and let the dough rest until it doubles in size.',
+      'Add salt and knead until the dough reaches a smooth windowpane stage.',
+      'Cover and let the dough rest until doubled in size.',
       'Shape the dough and add seeds on top if desired.',
-      'Bake at 200°C for 25–30 minutes or until the bread gets a nice golden color.',
+      'Bake at 200°C for 25-30 minutes until golden.',
     ],
     tips: '',
-    notes: ''
+    notes: '',
   },
   {
     id: 'seed-3',
@@ -101,35 +104,35 @@ const SEED_RECIPES = [
     tag: 'Bread',
     createdAt: new Date('2024-01-03').toISOString(),
     meta: [
-      { label: 'Flour', value: '312.5 g Maida' },
-      { label: 'Yield', value: '9 Pavs' },
-      { label: 'Proof Time', value: '30–40 min' },
-      { label: 'Bake', value: '200°C / 15–20 min' },
+      { label: 'Flour', value: '312.5 g maida' },
+      { label: 'Yield', value: '9 pavs' },
+      { label: 'Proof Time', value: '30-40 min' },
+      { label: 'Bake', value: '200°C / 15-20 min' },
     ],
     ingredients: [
-      { name: 'Maida (Refined flour)', amount: '312.5 g' },
-      { name: 'Instant Yeast', amount: '17.5 g' },
+      { name: 'Maida (refined flour)', amount: '312.5 g' },
+      { name: 'Instant yeast', amount: '17.5 g' },
       { name: 'Sugar', amount: '25 g' },
-      { name: 'Milk + Water (50:50)', amount: '162.5 ml' },
+      { name: 'Milk + water (50:50)', amount: '162.5 ml' },
       { name: 'Salt', amount: '7.5 g' },
-      { name: 'Butter (soft)', amount: '2.5 tbsp (approx. 32 g)' },
+      { name: 'Butter (soft)', amount: '2.5 tbsp (about 32 g)' },
     ],
-    ingredientNote: 'Milk Wash: Apply milk wash on top before baking for a golden glossy finish.',
+    ingredientNote: 'Milk wash before baking for a golden glossy finish.',
     method: [
-      'In a bowl, combine maida, yeast, and sugar. (Salt can be added later if preferred.)',
-      'Add the milk + water mixture gradually and mix to form a dough.',
-      'Start kneading the dough until it begins to come together.',
+      'Combine maida, yeast, and sugar in a bowl.',
+      'Add the milk and water mixture gradually and mix to form a dough.',
+      'Start kneading until the dough comes together.',
       'Add softened butter and continue kneading.',
-      'Add salt and knead further until you achieve a smooth dough (windowpane stage).',
+      'Add salt and knead until smooth.',
       'Let the dough rest for about 15 minutes.',
       'Divide the dough into 9 equal portions.',
-      'Shape into balls and place them in a greased baking tray.',
-      'Cover and let them proof for 30–40 minutes in a warm place.',
+      'Shape into balls and place in a greased tray.',
+      'Cover and proof for 30-40 minutes in a warm place.',
       'Apply milk wash on top.',
-      'Bake at 200°C for 15–20 minutes until golden brown.',
+      'Bake at 200°C for 15-20 minutes until golden brown.',
     ],
     tips: '',
-    notes: ''
+    notes: '',
   },
   {
     id: 'seed-4',
@@ -140,8 +143,8 @@ const SEED_RECIPES = [
     meta: [
       { label: 'Flour', value: '275 g' },
       { label: 'Tray', value: '9×9 inch' },
-      { label: 'Rise', value: '1–1.5 hrs' },
-      { label: 'Bake', value: '200°C / 22–25 min' },
+      { label: 'Rise', value: '1-1.5 hrs' },
+      { label: 'Bake', value: '200°C / 22-25 min' },
     ],
     ingredients: [
       { name: 'Warm water', amount: '250 ml' },
@@ -151,24 +154,24 @@ const SEED_RECIPES = [
       { name: 'Olive oil', amount: '0.5 tbsp' },
       { name: 'Flour', amount: '275 g' },
     ],
-    ingredientNote: 'Toppings: Bell pepper, Olives, Jalapeños, Onion, Capsicum',
+    ingredientNote: 'Toppings: bell pepper, olives, jalapenos, onion, capsicum',
     method: [
-      'In a bowl, whisk together warm water, sugar, salt, yeast, and olive oil.',
+      'Whisk together warm water, sugar, salt, yeast, and olive oil.',
       'Add flour and mix until a sticky dough forms.',
       'Cover and let the dough rest for 10 minutes.',
       'Perform gentle stretch and folds every 15 minutes, repeating 4 times.',
-      'Cover and let it rise at room temperature for 1 to 1.5 hours (or refrigerate up to 12 hours).',
+      'Let it rise at room temperature for 1 to 1.5 hours.',
       'Transfer the dough to a greased 9×9 inch baking tray.',
-      'Cover and let it proof again until it doubles in the tray.',
-      'Preheat oven to 200°C.',
+      'Proof again until it doubles in the tray.',
+      'Preheat the oven to 200°C.',
       'Dimple the dough using oiled fingertips.',
-      'Marinate all veggies in olive oil for 10 minutes for enhanced flavour.',
-      'Add the marinated toppings over the dough and drizzle a little more olive oil.',
-      'Bake for 22–25 minutes until golden brown and crispy.',
+      'Marinate the vegetables in olive oil for 10 minutes.',
+      'Add the toppings and drizzle a little more olive oil.',
+      'Bake for 22-25 minutes until golden brown and crispy.',
       'Let it cool slightly before slicing and serving.',
     ],
     tips: '',
-    notes: ''
+    notes: '',
   },
   {
     id: 'seed-5',
@@ -177,130 +180,278 @@ const SEED_RECIPES = [
     tag: 'Bread',
     createdAt: new Date('2024-01-05').toISOString(),
     meta: [
-      { label: 'Flour', value: '140 g Maida' },
+      { label: 'Flour', value: '140 g maida' },
       { label: 'Dough Yield', value: '~253 g' },
-      { label: 'Portions', value: '100–120 g each' },
-      { label: 'Bake', value: '200°C / 3–5 min' },
+      { label: 'Portions', value: '100-120 g each' },
+      { label: 'Bake', value: '200°C / 3-5 min' },
     ],
     ingredients: [
-      { name: 'Maida (Refined flour)', amount: '140 g' },
+      { name: 'Maida (refined flour)', amount: '140 g' },
       { name: 'Yeast', amount: '4.2 g' },
       { name: 'Powdered sugar', amount: '2.8 g' },
-      { name: 'Improver (Optional)', amount: '0.7 g' },
+      { name: 'Improver (optional)', amount: '0.7 g' },
       { name: 'Oil', amount: '18.2 g' },
       { name: 'Water', amount: '84 g' },
       { name: 'Salt', amount: '2.8 g' },
     ],
     ingredientNote: '',
     method: [
-      'In a bowl, combine maida, yeast, powdered sugar, and improver (if using).',
+      'Combine maida, yeast, powdered sugar, and improver if using.',
       'Add water gradually and mix to form a dough.',
-      'Knead until the dough reaches about 50–70% development.',
+      'Knead until the dough reaches about 50-70% development.',
       'Add oil and continue kneading to form a soft dough.',
-      'Check for the windowpane stage (dough should stretch thin without tearing).',
+      'Check for the windowpane stage.',
       'Add salt and knead again until fully incorporated.',
-      'Cover and let the dough rest for 20–30 minutes.',
+      'Cover and let the dough rest for 20-30 minutes.',
       'Degas the dough gently.',
-      'Divide into equal portions of 100–120 g each.',
+      'Divide into equal portions of 100-120 g each.',
       'Roll each portion evenly into a round base.',
       'Dock using a fork.',
-      'Bake at 200°C for 3–5 minutes until semi-baked (do not brown; keep light in color).',
+      'Bake at 200°C for 3-5 minutes until semi-baked.',
     ],
     tips: '',
-    notes: ''
+    notes: '',
   },
 ]
 
-async function loadRecipes() {
+function normalizeRecipes(recipes) {
+  return recipes
+    .map((recipe) => ({
+      ...recipe,
+      createdAt: recipe.createdAt || new Date().toISOString(),
+      meta: recipe.meta || [],
+      ingredients: recipe.ingredients || [],
+      method: recipe.method || [],
+      tips: recipe.tips || '',
+      notes: recipe.notes || '',
+    }))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+}
+
+async function getLocalRecipes() {
   try {
-    const db = await getDB()
-    const all = await db.getAll(STORE_NAME)
-    if (all.length === 0) {
-      // Seed the database
-      const tx = db.transaction(STORE_NAME, 'readwrite')
-      await Promise.all(SEED_RECIPES.map(r => tx.store.put(r)))
+    const database = await getLocalDB()
+    const recipes = await database.getAll(STORE_NAME)
+
+    if (recipes.length === 0) {
+      const tx = database.transaction(STORE_NAME, 'readwrite')
+      await Promise.all(SEED_RECIPES.map((recipe) => tx.store.put(recipe)))
       await tx.done
-      return SEED_RECIPES
+      return normalizeRecipes(SEED_RECIPES)
     }
-    return all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  } catch (e) {
-    console.error('DB error:', e)
-    return SEED_RECIPES
+
+    return normalizeRecipes(recipes)
+  } catch (error) {
+    console.error('Local DB error:', error)
+    return normalizeRecipes(SEED_RECIPES)
   }
 }
 
-async function saveRecipeToDB(recipe) {
+async function saveLocalRecipe(recipe) {
   try {
-    const db = await getDB()
-    await db.put(STORE_NAME, recipe)
-  } catch (e) { console.error(e) }
+    const database = await getLocalDB()
+    await database.put(STORE_NAME, recipe)
+  } catch (error) {
+    console.error('Local save error:', error)
+  }
 }
 
-async function deleteRecipeFromDB(id) {
+async function saveLocalRecipes(recipes) {
   try {
-    const db = await getDB()
-    await db.delete(STORE_NAME, id)
-  } catch (e) { console.error(e) }
+    const database = await getLocalDB()
+    const tx = database.transaction(STORE_NAME, 'readwrite')
+    await tx.store.clear()
+    await Promise.all(recipes.map((recipe) => tx.store.put(recipe)))
+    await tx.done
+  } catch (error) {
+    console.error('Local sync error:', error)
+  }
 }
+
+async function deleteLocalRecipe(id) {
+  try {
+    const database = await getLocalDB()
+    await database.delete(STORE_NAME, id)
+  } catch (error) {
+    console.error('Local delete error:', error)
+  }
+}
+
+function getRecipesCollection() {
+  return collection(db, 'recipes')
+}
+
+async function loadRemoteRecipes() {
+  const snapshot = await getDocs(getRecipesCollection())
+  return normalizeRecipes(snapshot.docs.map((entry) => entry.data()))
+}
+
+async function saveRemoteRecipe(recipe) {
+  await setDoc(doc(db, 'recipes', recipe.id), recipe)
+}
+
+async function deleteRemoteRecipe(id) {
+  await deleteDoc(doc(db, 'recipes', id))
+}
+
+async function migrateLocalRecipesIfNeeded(isAdmin) {
+  const remoteRecipes = await loadRemoteRecipes()
+  if (remoteRecipes.length > 0 || !isAdmin) {
+    return remoteRecipes
+  }
+
+  const localRecipes = await getLocalRecipes()
+  await Promise.all(localRecipes.map((recipe) => saveRemoteRecipe(recipe)))
+  return localRecipes
+}
+
+function isAdminUser(user) {
+  return !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
+}
+
+let hasInitializedAuthListener = false
 
 export const useStore = create((set, get) => ({
   recipes: [],
   loading: true,
+  authReady: false,
   currentPage: 'library',
   selectedRecipe: null,
   editingRecipe: null,
   searchQuery: '',
   activeTag: 'All',
+  user: null,
+  isAdmin: false,
+  authError: '',
 
   init: async () => {
-    const recipes = await loadRecipes()
-    set({ recipes, loading: false })
+    if (hasInitializedAuthListener) return
+    hasInitializedAuthListener = true
+
+    const localRecipes = await getLocalRecipes()
+    set({ recipes: localRecipes, loading: true })
+
+    onAuthStateChanged(auth, async (user) => {
+      const isAdmin = isAdminUser(user)
+
+      if (!user) {
+        set({
+          user: null,
+          isAdmin: false,
+          authReady: true,
+          loading: false,
+          recipes: localRecipes,
+          currentPage: 'library',
+          selectedRecipe: null,
+          editingRecipe: null,
+        })
+        return
+      }
+
+      set({ user, isAdmin, loading: true, authReady: true, authError: '' })
+
+      try {
+        const recipes = await migrateLocalRecipesIfNeeded(isAdmin)
+        await saveLocalRecipes(recipes)
+        set({ recipes, loading: false })
+      } catch (error) {
+        console.error('Cloud load error:', error)
+        set({
+          recipes: localRecipes,
+          loading: false,
+          authError: 'Could not load recipes from Firebase. Showing local recipes for now.',
+        })
+      }
+    })
   },
 
-  setPage: (page, data = null) => set({ 
-    currentPage: page, 
-    selectedRecipe: data?.recipe || null,
-    editingRecipe: data?.editing || null 
-  }),
+  signIn: async () => {
+    try {
+      await signInWithPopup(auth, googleProvider)
+      set({ authError: '' })
+    } catch (error) {
+      console.error('Sign in error:', error)
+      set({ authError: 'Google sign-in did not complete. Please try again.' })
+    }
+  },
 
-  setSearch: (q) => set({ searchQuery: q }),
-  setTag: (tag) => set({ activeTag: tag }),
+  signOutUser: async () => {
+    await signOut(auth)
+  },
+
+  setPage: (page, data = null) => {
+    const { isAdmin } = get()
+    const nextPage = page === 'add' && !isAdmin ? 'library' : page
+
+    set({
+      currentPage: nextPage,
+      selectedRecipe: data?.recipe || null,
+      editingRecipe: data?.editing || null,
+    })
+  },
+
+  setSearch: (searchQuery) => set({ searchQuery }),
+  setTag: (activeTag) => set({ activeTag }),
 
   addRecipe: async (recipe) => {
-    const newRecipe = { ...recipe, id: `recipe-${Date.now()}`, createdAt: new Date().toISOString() }
-    await saveRecipeToDB(newRecipe)
-    set(s => ({ recipes: [newRecipe, ...s.recipes] }))
+    const { isAdmin } = get()
+    if (!isAdmin) return null
+
+    const newRecipe = {
+      ...recipe,
+      id: `recipe-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    }
+
+    await saveRemoteRecipe(newRecipe)
+    await saveLocalRecipe(newRecipe)
+    set((state) => ({ recipes: normalizeRecipes([newRecipe, ...state.recipes]) }))
     return newRecipe
   },
 
   updateRecipe: async (recipe) => {
-    await saveRecipeToDB(recipe)
-    set(s => ({ recipes: s.recipes.map(r => r.id === recipe.id ? recipe : r) }))
+    const { isAdmin } = get()
+    if (!isAdmin) return
+
+    await saveRemoteRecipe(recipe)
+    await saveLocalRecipe(recipe)
+    set((state) => ({
+      recipes: normalizeRecipes(state.recipes.map((entry) => (entry.id === recipe.id ? recipe : entry))),
+      selectedRecipe: state.selectedRecipe?.id === recipe.id ? recipe : state.selectedRecipe,
+    }))
   },
 
   deleteRecipe: async (id) => {
-    await deleteRecipeFromDB(id)
-    set(s => ({ recipes: s.recipes.filter(r => r.id !== id) }))
+    const { isAdmin } = get()
+    if (!isAdmin) return
+
+    await deleteRemoteRecipe(id)
+    await deleteLocalRecipe(id)
+    set((state) => ({
+      recipes: state.recipes.filter((recipe) => recipe.id !== id),
+      selectedRecipe: state.selectedRecipe?.id === id ? null : state.selectedRecipe,
+    }))
   },
 
   getFilteredRecipes: () => {
     const { recipes, searchQuery, activeTag } = get()
-    return recipes.filter(r => {
-      const matchSearch = !searchQuery || 
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.tag?.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchTag = activeTag === 'All' || r.tag === activeTag
+    return recipes.filter((recipe) => {
+      const matchSearch = !searchQuery
+        || recipe.name.toLowerCase().includes(searchQuery.toLowerCase())
+        || recipe.tag?.toLowerCase().includes(searchQuery.toLowerCase())
+
+      const matchTag = activeTag === 'All' || recipe.tag === activeTag
       return matchSearch && matchTag
     })
-  }
+  },
 }))
 
 export const TAGS = ['All', 'Bread', 'Cake', 'Cookies', 'Pastry', 'Other']
 
 export const TAG_COLORS = {
-  Bread: { bg: 'rgba(201,169,110,0.15)', color: '#8a6424', border: 'rgba(201,169,110,0.4)' },
-  Cake: { bg: 'rgba(212,136,106,0.15)', color: '#8a3e22', border: 'rgba(212,136,106,0.4)' },
-  Cookies: { bg: 'rgba(143,166,139,0.15)', color: '#3d5e3a', border: 'rgba(143,166,139,0.4)' },
-  Pastry: { bg: 'rgba(176,158,150,0.15)', color: '#5e4a43', border: 'rgba(176,158,150,0.4)' },
-  Other: { bg: 'rgba(176,158,150,0.1)', color: '#6b5e57', border: 'rgba(176,158,150,0.3)' },
+  Bread: { bg: 'rgba(180, 149, 255, 0.16)', color: '#6f46d8', border: 'rgba(180, 149, 255, 0.35)' },
+  Cake: { bg: 'rgba(244, 114, 208, 0.16)', color: '#c03da2', border: 'rgba(244, 114, 208, 0.34)' },
+  Cookies: { bg: 'rgba(138, 167, 255, 0.16)', color: '#4864da', border: 'rgba(138, 167, 255, 0.34)' },
+  Pastry: { bg: 'rgba(255, 175, 220, 0.16)', color: '#c14e96', border: 'rgba(255, 175, 220, 0.34)' },
+  Other: { bg: 'rgba(209, 201, 255, 0.16)', color: '#6958b7', border: 'rgba(209, 201, 255, 0.34)' },
 }
