@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useStore } from './store/useStore'
 import BottomNav from './components/BottomNav'
 import LibraryPage from './pages/LibraryPage'
@@ -7,7 +7,9 @@ import RecipeViewPage from './pages/RecipeViewPage'
 import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
-  const { currentPage, init, initInstallPromptListener, authReady, user, signIn, authError } = useStore()
+  const { currentPage, selectedRecipe, editingRecipe, init, initInstallPromptListener, authReady, user, signIn, authError, setPage } = useStore()
+  const hasBootstrappedHistory = useRef(false)
+  const isHandlingPopState = useRef(false)
 
   useEffect(() => {
     init()
@@ -16,6 +18,83 @@ export default function App() {
   useEffect(() => {
     initInstallPromptListener()
   }, [initInstallPromptListener])
+
+  useEffect(() => {
+    if (!authReady || !user) {
+      hasBootstrappedHistory.current = false
+      return
+    }
+
+    const applyHistoryState = (state) => {
+      const page = state?.page || 'library'
+
+      if (page === 'view' && selectedRecipe?.id === state?.recipeId) {
+        setPage('view', { recipe: selectedRecipe })
+        return
+      }
+
+      if (page === 'add' && editingRecipe?.id === state?.editingRecipeId) {
+        setPage('add', { editing: editingRecipe })
+        return
+      }
+
+      setPage(page)
+    }
+
+    const handlePopState = (event) => {
+      isHandlingPopState.current = true
+      applyHistoryState(event.state)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [authReady, user, selectedRecipe, editingRecipe, setPage])
+
+  useEffect(() => {
+    if (!authReady || !user || typeof window === 'undefined') {
+      return
+    }
+
+    const state = {
+      page: currentPage,
+      recipeId: selectedRecipe?.id || null,
+      editingRecipeId: editingRecipe?.id || null,
+    }
+
+    if (!hasBootstrappedHistory.current) {
+      window.history.replaceState({ page: 'library' }, '')
+
+      if (currentPage !== 'library') {
+        window.history.pushState(state, '')
+      }
+
+      hasBootstrappedHistory.current = true
+      return
+    }
+
+    if (isHandlingPopState.current) {
+      isHandlingPopState.current = false
+      window.history.replaceState(state, '')
+      return
+    }
+
+    const activeState = window.history.state || { page: 'library' }
+    const samePage = activeState.page === state.page
+      && activeState.recipeId === state.recipeId
+      && activeState.editingRecipeId === state.editingRecipeId
+
+    if (!samePage) {
+      if (currentPage === 'library') {
+        window.history.go(-(window.history.length > 1 ? 1 : 0))
+        return
+      }
+
+      window.history.pushState(state, '')
+    }
+  }, [authReady, user, currentPage, selectedRecipe, editingRecipe])
 
   const renderPage = () => {
     const style = { opacity: 0, animationDuration: '0.35s', minHeight: '100dvh' }
