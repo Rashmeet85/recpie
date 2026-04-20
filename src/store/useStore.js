@@ -361,6 +361,12 @@ async function migrateLocalRecipesIfNeeded(canManageRecipes) {
 }
 
 let hasInitializedAuthListener = false
+let hasInitializedInstallPromptListener = false
+
+function isStandaloneMode() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+}
 
 export const useStore = create((set, get) => ({
   recipes: [],
@@ -377,6 +383,9 @@ export const useStore = create((set, get) => ({
   isAdmin: false,
   roleEntries: [],
   authError: '',
+  installPromptEvent: null,
+  canInstallApp: false,
+  isInstalled: isStandaloneMode(),
 
   init: async () => {
     if (hasInitializedAuthListener) return
@@ -453,6 +462,52 @@ export const useStore = create((set, get) => ({
 
   signOutUser: async () => {
     await signOut(auth)
+  },
+
+  initInstallPromptListener: () => {
+    if (hasInitializedInstallPromptListener || typeof window === 'undefined') return
+    hasInitializedInstallPromptListener = true
+
+    const syncInstalledState = () => {
+      set({ isInstalled: isStandaloneMode() })
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault()
+      set({
+        installPromptEvent: event,
+        canInstallApp: true,
+        isInstalled: false,
+      })
+    })
+
+    window.addEventListener('appinstalled', () => {
+      set({
+        installPromptEvent: null,
+        canInstallApp: false,
+        isInstalled: true,
+      })
+    })
+
+    window.addEventListener('focus', syncInstalledState)
+    window.addEventListener('visibilitychange', syncInstalledState)
+    syncInstalledState()
+  },
+
+  installApp: async () => {
+    const { installPromptEvent } = get()
+    if (!installPromptEvent) return null
+
+    await installPromptEvent.prompt()
+    const result = await installPromptEvent.userChoice.catch(() => null)
+
+    set({
+      installPromptEvent: null,
+      canInstallApp: false,
+      isInstalled: isStandaloneMode(),
+    })
+
+    return result
   },
 
   setPage: (page, data = null) => {

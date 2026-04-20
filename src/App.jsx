@@ -7,11 +7,15 @@ import RecipeViewPage from './pages/RecipeViewPage'
 import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
-  const { currentPage, init, authReady, user, signIn, authError } = useStore()
+  const { currentPage, init, initInstallPromptListener, authReady, user, signIn, authError } = useStore()
 
   useEffect(() => {
     init()
   }, [init])
+
+  useEffect(() => {
+    initInstallPromptListener()
+  }, [initInstallPromptListener])
 
   const renderPage = () => {
     const style = { opacity: 0, animationDuration: '0.35s', minHeight: '100dvh' }

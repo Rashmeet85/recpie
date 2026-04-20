@@ -1,10 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { exportToPDF, exportToDocx } from '../utils/export'
-
-function isStandaloneMode() {
-  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
-}
 
 export default function SettingsPage() {
   const {
@@ -19,35 +15,16 @@ export default function SettingsPage() {
     authError,
     setUserRole,
     revokeUserRole,
+    canInstallApp,
+    isInstalled,
+    installApp,
   } = useStore()
 
   const [exporting, setExporting] = useState(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
-  const [installPromptEvent, setInstallPromptEvent] = useState(null)
-  const [isInstalled, setIsInstalled] = useState(isStandaloneMode())
   const [roleEmail, setRoleEmail] = useState('')
   const [roleValue, setRoleValue] = useState('admin')
   const [savingRole, setSavingRole] = useState(false)
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (event) => {
-      event.preventDefault()
-      setInstallPromptEvent(event)
-    }
-
-    const handleInstalled = () => {
-      setInstallPromptEvent(null)
-      setIsInstalled(true)
-    }
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    window.addEventListener('appinstalled', handleInstalled)
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-      window.removeEventListener('appinstalled', handleInstalled)
-    }
-  }, [])
 
   const handleExport = async (type) => {
     setExporting(type)
@@ -103,14 +80,6 @@ export default function SettingsPage() {
 
     reader.readAsText(file)
     event.target.value = ''
-  }
-
-  const handleInstallApp = async () => {
-    if (!installPromptEvent) return
-
-    await installPromptEvent.prompt()
-    await installPromptEvent.userChoice.catch(() => null)
-    setInstallPromptEvent(null)
   }
 
   const handleSaveRole = async () => {
@@ -186,11 +155,11 @@ export default function SettingsPage() {
 
       <SettingsSection title="Install App" icon="📱" delay="0.16s">
         <SettingsButton
-          onClick={handleInstallApp}
-          disabled={!installPromptEvent || isInstalled}
+          onClick={installApp}
+          disabled={!canInstallApp || isInstalled}
           icon="⬇️"
           label={isInstalled ? 'App already installed' : 'Install this app'}
-          sub={isInstalled ? 'The PWA is already installed on this device.' : installPromptEvent ? "Add Kaur's Cakery to your home screen." : 'Install becomes available when the browser allows it.'}
+          sub={isInstalled ? 'The PWA is already installed on this device.' : canInstallApp ? "Add Kaur's Cakery to your home screen." : 'Open this app in a supported browser and wait a moment for install to become available.'}
         />
       </SettingsSection>
 
