@@ -246,18 +246,18 @@ export default function SettingsPage() {
                 const canEdit = entry.role !== 'owner' && (isOwner || entry.role !== 'coowner')
                 const editableRoleOptions = getEditableRoleOptions(entry.role)
                 return (
-                  <div key={entry.email} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: 'rgba(255,255,255,0.58)', border: '1px solid rgba(255,255,255,0.62)', borderRadius: 18, padding: '12px 14px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  <div key={entry.email} style={{ display: 'flex', flexDirection: 'column', gap: 12, background: 'rgba(255,255,255,0.58)', border: '1px solid rgba(255,255,255,0.62)', borderRadius: 18, padding: '12px 14px' }}>
+                    <div style={{ minWidth: 0 }}>
                       <p style={{ margin: '0 0 4px', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--charcoal)', wordBreak: 'break-all' }}>{entry.email}</p>
                       <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{entry.role}</p>
                     </div>
                     {canEdit ? (
-                      <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <select
                           className="input-field"
                           value={entry.role}
                           onChange={(event) => setUserRole(entry.email, event.target.value)}
-                          style={{ flex: '1 1 160px', minWidth: 140, maxWidth: 190, padding: '10px 14px', appearance: 'none', background: 'rgba(255,255,255,0.7)' }}
+                          style={{ flex: '1 1 180px', minWidth: 160, padding: '10px 14px', appearance: 'none', background: 'rgba(255,255,255,0.7)' }}
                         >
                           {editableRoleOptions.map((roleOption) => (
                             <option key={roleOption} value={roleOption}>
@@ -271,7 +271,7 @@ export default function SettingsPage() {
                         >
                           Revoke
                         </button>
-                      </>
+                      </div>
                     ) : (
                       <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, color: 'var(--rose)' }}>{entry.role === 'owner' ? 'Owner' : 'Co-owner'}</span>
                     )}
