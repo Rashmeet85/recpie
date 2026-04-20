@@ -17,7 +17,47 @@ service cloud.firestore {
     }
 
     function canManageRecipes() {
-      return isOwner() || currentRole() == 'admin';
+      return isOwner() || currentRole() in ['coowner', 'admin'];
+    }
+
+    function canManageRoles() {
+      return isOwner() || currentRole() == 'coowner';
+    }
+
+    function incomingRole() {
+      return request.resource.data.role;
+    }
+
+    function existingRole(userEmail) {
+      return userEmail == 'h.r17731785@gmail.com'
+        ? 'owner'
+        : resource == null
+          ? null
+          : resource.data.role;
+    }
+
+    function isOwnRoleDoc(userEmail) {
+      return isSignedIn() && request.auth.token.email == userEmail;
+    }
+
+    function canWriteRole(userEmail) {
+      return isOwner()
+        || (
+          currentRole() == 'coowner'
+          && !isOwnRoleDoc(userEmail)
+          && existingRole(userEmail) != 'owner'
+          && existingRole(userEmail) != 'coowner'
+          && incomingRole() in ['admin', 'viewer']
+        );
+    }
+
+    function canDeleteRole(userEmail) {
+      return isOwner()
+        || (
+          currentRole() == 'coowner'
+          && !isOwnRoleDoc(userEmail)
+          && existingRole(userEmail) in ['admin', 'viewer']
+        );
     }
 
     match /recipes/{recipeId} {
@@ -26,8 +66,9 @@ service cloud.firestore {
     }
 
     match /roles/{userEmail} {
-      allow read: if isSignedIn() && (isOwner() || request.auth.token.email == userEmail);
-      allow write: if isOwner();
+      allow read: if isSignedIn() && (canManageRoles() || request.auth.token.email == userEmail);
+      allow create, update: if isSignedIn() && canWriteRole(userEmail);
+      allow delete: if isSignedIn() && canDeleteRole(userEmail);
     }
   }
 }

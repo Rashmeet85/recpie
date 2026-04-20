@@ -9,7 +9,10 @@ export default function SettingsPage() {
     user,
     userRole,
     isOwner,
+    isCoOwner,
     isAdmin,
+    canManageRoles,
+    canAssignCoOwner,
     roleEntries,
     signOutUser,
     authError,
@@ -83,7 +86,7 @@ export default function SettingsPage() {
   }
 
   const handleSaveRole = async () => {
-    if (!isOwner || !roleEmail.trim()) return
+    if (!canManageRoles || !roleEmail.trim()) return
 
     setSavingRole(true)
     try {
@@ -95,9 +98,11 @@ export default function SettingsPage() {
   }
 
   const roleSummary = isOwner
-    ? 'Owner access enabled. You can manage user roles, recipes, imports, and deletes.'
-    : isAdmin
-      ? 'Admin access enabled. You can create, edit, import, and delete recipes.'
+    ? 'Owner access enabled. You can manage owners, user roles, recipes, imports, and deletes.'
+    : isCoOwner
+      ? 'Co-owner access enabled. You can manage admins, viewers, recipes, imports, and deletes.'
+      : isAdmin
+        ? 'Admin access enabled. You can create, edit, import, and delete recipes.'
       : 'Viewer access enabled. You can browse and export recipes.'
 
   return (
@@ -183,11 +188,13 @@ export default function SettingsPage() {
         </SettingsSection>
       )}
 
-      {isOwner && (
+      {canManageRoles && (
         <SettingsSection title="Access Control" icon="👑" delay={isAdmin ? '0.24s' : '0.2s'}>
           <div style={{ padding: 18, background: 'rgba(255,255,255,0.52)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)' }}>
             <p style={{ margin: '0 0 12px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--warm-gray)', lineHeight: 1.6 }}>
-              Add or update a user by email. `admin` can manage recipes. `viewer` can only browse and export. Your owner role cannot be revoked here.
+              {canAssignCoOwner
+                ? 'Add or update a user by email. `coowner` can manage admins and viewers, `admin` can manage recipes, and `viewer` can only browse and export. Your owner role cannot be revoked here.'
+                : 'Add or update a user by email. You can assign `admin` and `viewer` roles. Co-owners cannot create more co-owners or owners.'}
             </p>
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -204,6 +211,7 @@ export default function SettingsPage() {
                 onChange={(event) => setRoleValue(event.target.value)}
                 style={{ flex: '0 0 140px', appearance: 'none' }}
               >
+                {canAssignCoOwner && <option value="coowner">Co-owner</option>}
                 <option value="admin">Admin</option>
                 <option value="viewer">Viewer</option>
               </select>
@@ -229,21 +237,32 @@ export default function SettingsPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {roleEntries.map((entry) => {
-                const canRevoke = entry.role !== 'owner'
+                const canEdit = entry.role !== 'owner' && (isOwner || entry.role !== 'coowner')
+                const quickRole = entry.role === 'viewer' ? 'admin' : 'viewer'
                 return (
                   <div key={entry.email} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.58)', border: '1px solid rgba(255,255,255,0.62)', borderRadius: 18, padding: '12px 14px' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: '0 0 4px', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--charcoal)', wordBreak: 'break-all' }}>{entry.email}</p>
                       <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{entry.role}</p>
                     </div>
-                    {canRevoke ? (
+                    {canEdit ? (
                       <>
-                        <button
-                          onClick={() => setUserRole(entry.email, entry.role === 'admin' ? 'viewer' : 'admin')}
-                          style={{ padding: '8px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.7)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          Make {entry.role === 'admin' ? 'Viewer' : 'Admin'}
-                        </button>
+                        {entry.role !== 'coowner' && (
+                          <button
+                            onClick={() => setUserRole(entry.email, quickRole)}
+                            style={{ padding: '8px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.7)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Make {quickRole === 'admin' ? 'Admin' : 'Viewer'}
+                          </button>
+                        )}
+                        {isOwner && entry.role !== 'coowner' && (
+                          <button
+                            onClick={() => setUserRole(entry.email, 'coowner')}
+                            style={{ padding: '8px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.7)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Make Co-owner
+                          </button>
+                        )}
                         <button
                           onClick={() => revokeUserRole(entry.email)}
                           style={{ padding: '8px 12px', borderRadius: 12, border: 'none', background: 'rgba(224,90,58,0.12)', color: '#c24a2d', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
@@ -252,7 +271,7 @@ export default function SettingsPage() {
                         </button>
                       </>
                     ) : (
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, color: 'var(--rose)' }}>Owner</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, color: 'var(--rose)' }}>{entry.role === 'owner' ? 'Owner' : 'Co-owner'}</span>
                     )}
                   </div>
                 )

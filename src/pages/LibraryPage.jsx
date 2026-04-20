@@ -20,7 +20,6 @@ export default function LibraryPage() {
       <div style={{
         padding: '56px 20px 0',
         background: 'linear-gradient(180deg, rgba(250,248,255,0.92) 70%, rgba(250,248,255,0) 100%)',
-        position: 'sticky', top: 0, zIndex: 50,
       }}>
         <div className="animate-fade-up" style={{ animationDelay: '0s', opacity: 0 }}>
           <p style={{ margin: '0 0 2px', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--light-warm)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500 }}>

@@ -291,12 +291,28 @@ function normalizeEmail(email) {
 }
 
 function sortRoles(roles) {
-  const priority = { owner: 0, admin: 1, viewer: 2 }
+  const priority = { owner: 0, coowner: 1, admin: 2, viewer: 3 }
   return [...roles].sort((a, b) => {
     const roleDiff = (priority[a.role] ?? 9) - (priority[b.role] ?? 9)
     if (roleDiff !== 0) return roleDiff
     return a.email.localeCompare(b.email)
   })
+}
+
+function getPermissions(role, email) {
+  const isOwner = email === OWNER_EMAIL
+  const normalizedRole = isOwner ? 'owner' : role || 'viewer'
+  const isCoOwner = normalizedRole === 'coowner'
+  const isAdmin = isOwner || isCoOwner || normalizedRole === 'admin'
+
+  return {
+    userRole: normalizedRole,
+    isOwner,
+    isCoOwner,
+    isAdmin,
+    canManageRoles: isOwner || isCoOwner,
+    canAssignCoOwner: isOwner,
+  }
 }
 
 async function loadRemoteRecipes() {
@@ -380,7 +396,10 @@ export const useStore = create((set, get) => ({
   user: null,
   userRole: 'viewer',
   isOwner: false,
+  isCoOwner: false,
   isAdmin: false,
+  canManageRoles: false,
+  canAssignCoOwner: false,
   roleEntries: [],
   authError: '',
   installPromptEvent: null,
@@ -403,7 +422,10 @@ export const useStore = create((set, get) => ({
           user: null,
           userRole: 'viewer',
           isOwner: false,
+          isCoOwner: false,
           isAdmin: false,
+          canManageRoles: false,
+          canAssignCoOwner: false,
           roleEntries: [],
           authReady: true,
           loading: false,
@@ -423,26 +445,24 @@ export const useStore = create((set, get) => ({
         }
 
         const userRole = isOwner ? 'owner' : await loadUserRole(email)
-        const canManageRecipes = isOwner || userRole === 'admin'
-        const roleEntries = isOwner ? await loadRoleEntries() : []
+        const permissions = getPermissions(userRole, email)
+        const canManageRecipes = permissions.isAdmin
+        const roleEntries = permissions.canManageRoles ? await loadRoleEntries() : []
         const recipes = await migrateLocalRecipesIfNeeded(canManageRecipes)
         await saveLocalRecipes(recipes)
         set({
           recipes,
           loading: false,
-          userRole,
-          isOwner,
-          isAdmin: canManageRecipes,
+          ...permissions,
           roleEntries,
         })
       } catch (error) {
         console.error('Cloud load error:', error)
+        const permissions = getPermissions(isOwner ? 'owner' : 'viewer', email)
         set({
           recipes: localRecipes,
           loading: false,
-          userRole: isOwner ? 'owner' : 'viewer',
-          isOwner,
-          isAdmin: isOwner,
+          ...permissions,
           roleEntries: [],
           authError: error?.code ? `Firebase error: ${error.code}` : 'Could not load recipes from Firebase. Showing local recipes for now.',
         })
@@ -577,53 +597,61 @@ export const useStore = create((set, get) => ({
   },
 
   refreshRoles: async () => {
-    const { isOwner } = get()
-    if (!isOwner) return
+    const { canManageRoles } = get()
+    if (!canManageRoles) return
 
     const roleEntries = await loadRoleEntries()
     set({ roleEntries })
   },
 
   setUserRole: async (email, role) => {
-    const { isOwner, user } = get()
-    if (!isOwner) return
+    const { canManageRoles, canAssignCoOwner, user } = get()
+    if (!canManageRoles) return
 
     const normalizedEmail = normalizeEmail(email)
     if (!normalizedEmail) return
 
-    const finalRole = normalizedEmail === OWNER_EMAIL ? 'owner' : role
-    await saveRole(normalizedEmail, finalRole)
+    if (normalizedEmail === OWNER_EMAIL) {
+      await saveRole(normalizedEmail, 'owner')
+    } else {
+      const allowedRoles = canAssignCoOwner ? ['coowner', 'admin', 'viewer'] : ['admin', 'viewer']
+      if (!allowedRoles.includes(role)) return
+      await saveRole(normalizedEmail, role)
+    }
 
     const roleEntries = await loadRoleEntries()
     const currentUserEmail = normalizeEmail(user?.email)
     const currentUserRole = currentUserEmail === OWNER_EMAIL ? 'owner' : await loadUserRole(currentUserEmail)
+    const permissions = getPermissions(currentUserRole, currentUserEmail)
 
     set({
       roleEntries,
-      userRole: currentUserRole,
-      isOwner: currentUserEmail === OWNER_EMAIL,
-      isAdmin: currentUserEmail === OWNER_EMAIL || currentUserRole === 'admin',
+      ...permissions,
     })
   },
 
   revokeUserRole: async (email) => {
-    const { isOwner, user } = get()
-    if (!isOwner) return
+    const { canManageRoles, isOwner, user } = get()
+    if (!canManageRoles) return
 
     const normalizedEmail = normalizeEmail(email)
     if (!normalizedEmail || normalizedEmail === OWNER_EMAIL) return
+
+    if (!isOwner) {
+      const targetRole = await loadUserRole(normalizedEmail)
+      if (targetRole === 'coowner' || targetRole === 'owner') return
+    }
 
     await removeRole(normalizedEmail)
 
     const roleEntries = await loadRoleEntries()
     const currentUserEmail = normalizeEmail(user?.email)
     const currentUserRole = currentUserEmail === OWNER_EMAIL ? 'owner' : await loadUserRole(currentUserEmail)
+    const permissions = getPermissions(currentUserRole, currentUserEmail)
 
     set({
       roleEntries,
-      userRole: currentUserRole,
-      isOwner: currentUserEmail === OWNER_EMAIL,
-      isAdmin: currentUserEmail === OWNER_EMAIL || currentUserRole === 'admin',
+      ...permissions,
     })
   },
 }))

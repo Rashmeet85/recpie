@@ -63,9 +63,6 @@ export default function RecipeViewPage() {
       <div
         className="no-print"
         style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
           background: 'rgba(250,248,255,0.74)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
