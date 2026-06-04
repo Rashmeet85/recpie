@@ -48,6 +48,12 @@ export default function RecipeViewPage() {
   const scaledRecipe = scaleRecipe(recipe, safeScaleFactor)
   const tagColor = TAG_COLORS[recipe.tag] || TAG_COLORS.Other
 
+  const showExportMessage = (message) => {
+    window.setTimeout(() => {
+      setExportMessage(message)
+    }, 0)
+  }
+
   const handleDelete = async () => {
     await deleteRecipe(recipe.id)
     setPage('library')
@@ -63,10 +69,10 @@ export default function RecipeViewPage() {
       else if (type === 'docx-single') await exportSingleDocx(scaledRecipe)
       else if (type === 'pdf-all') await exportToPDF(recipes)
       else if (type === 'docx-all') await exportToDocx(recipes)
-      setExportMessage('Export done. Check your downloads.')
+      showExportMessage('Your export has been downloaded to this device.')
     } catch (error) {
       console.error(error)
-      setExportMessage('Export failed. Please try again.')
+      showExportMessage('Something went wrong. Please try exporting again.')
     } finally {
       setExporting(false)
     }
@@ -513,24 +519,66 @@ function ExportFeedback({ message }) {
   const isError = message.toLowerCase().includes('failed')
 
   return (
-    <div className="no-print" style={{ padding: '10px 20px 0' }}>
-      <p
-        role="status"
+    <div
+      className="no-print"
+      role="status"
+      aria-live="polite"
+      style={{
+        position: 'fixed',
+        left: 16,
+        right: 16,
+        bottom: 'calc(84px + env(safe-area-inset-bottom))',
+        zIndex: 1000,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      }}
+    >
+      <div
         style={{
           margin: 0,
-          padding: '10px 12px',
-          borderRadius: 14,
-          background: isError ? 'rgba(224,90,58,0.12)' : 'rgba(138,167,255,0.14)',
-          color: isError ? '#c24a2d' : 'var(--warm-gray)',
-          border: isError ? '1px solid rgba(224,90,58,0.18)' : '1px solid rgba(138,167,255,0.22)',
+          maxWidth: 460,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '14px 16px',
+          borderRadius: 20,
+          background: 'rgba(255,255,255,0.9)',
+          color: 'var(--charcoal)',
+          border: isError ? '1px solid rgba(224,90,58,0.28)' : '1px solid rgba(138,167,255,0.32)',
+          backdropFilter: 'blur(22px) saturate(1.2)',
+          WebkitBackdropFilter: 'blur(22px) saturate(1.2)',
+          boxShadow: '0 18px 48px rgba(82, 55, 138, 0.22)',
           fontFamily: 'var(--font-body)',
-          fontSize: 13,
-          fontWeight: 600,
-          textAlign: 'center',
         }}
       >
-        {message}
-      </p>
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            background: isError ? 'rgba(224,90,58,0.14)' : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+            color: isError ? '#c24a2d' : 'white',
+            fontSize: 18,
+            fontWeight: 800,
+          }}
+        >
+          {isError ? '!' : '✓'}
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>
+            {isError ? 'Export failed' : 'Download ready'}
+          </span>
+          <span style={{ display: 'block', marginTop: 2, fontSize: 12.5, color: 'var(--warm-gray)', lineHeight: 1.35 }}>
+            {message}
+          </span>
+        </span>
+      </div>
     </div>
   )
 }

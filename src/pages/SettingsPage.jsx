@@ -52,6 +52,12 @@ export default function SettingsPage() {
   const selectedRecipeCount = selectedRecipes.length
   const allRecipesSelected = recipes.length > 0 && selectedRecipeCount === recipes.length
 
+  const showExportMessage = (message) => {
+    window.setTimeout(() => {
+      setExportMessage(message)
+    }, 0)
+  }
+
   const handleExport = async (type) => {
     setExporting(type)
     setExportMessage('')
@@ -61,10 +67,10 @@ export default function SettingsPage() {
       else if (type === 'docx') await exportToDocx(recipes)
       else if (type === 'custom-pdf') await exportToPDF(selectedRecipes)
       else if (type === 'custom-docx') await exportToDocx(selectedRecipes)
-      setExportMessage('Export done. Check your downloads.')
+      showExportMessage('Your export has been downloaded to this device.')
     } catch (error) {
       console.error(error)
-      setExportMessage('Export failed. Please try again.')
+      showExportMessage('Something went wrong. Please try exporting again.')
     } finally {
       setExporting(null)
     }
@@ -96,7 +102,7 @@ export default function SettingsPage() {
     anchor.download = `kaurscakery_recipes_${new Date().toISOString().slice(0, 10)}.json`
     anchor.click()
     URL.revokeObjectURL(url)
-    setExportMessage('Backup downloaded. Check your downloads.')
+    showExportMessage('Your backup has been downloaded to this device.')
   }
 
   const handleImportJSON = (event) => {
@@ -278,7 +284,6 @@ export default function SettingsPage() {
           </div>
         </div>
         <SettingsButton onClick={handleExportJSON} icon="💾" label="Backup recipes" sub="Export as JSON for safekeeping" />
-        {exportMessage && <ExportFeedback message={exportMessage} />}
       </SettingsSection>
 
       <SettingsSection title="Install App" icon="📱" delay="0.16s">
@@ -440,6 +445,8 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {exportMessage && <ExportFeedback message={exportMessage} />}
     </div>
   )
 }
@@ -448,22 +455,66 @@ function ExportFeedback({ message }) {
   const isError = message.toLowerCase().includes('failed')
 
   return (
-    <p
+    <div
       role="status"
+      aria-live="polite"
       style={{
-        margin: '8px 2px 0',
-        padding: '10px 12px',
-        borderRadius: 14,
-        background: isError ? 'rgba(224,90,58,0.12)' : 'rgba(138,167,255,0.14)',
-        color: isError ? '#c24a2d' : 'var(--warm-gray)',
-        border: isError ? '1px solid rgba(224,90,58,0.18)' : '1px solid rgba(138,167,255,0.22)',
-        fontFamily: 'var(--font-body)',
-        fontSize: 13,
-        fontWeight: 600,
+        position: 'fixed',
+        left: 16,
+        right: 16,
+        bottom: 'calc(84px + env(safe-area-inset-bottom))',
+        zIndex: 1000,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
       }}
     >
-      {message}
-    </p>
+      <div
+        style={{
+          margin: 0,
+          maxWidth: 460,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '14px 16px',
+          borderRadius: 20,
+          background: 'rgba(255,255,255,0.9)',
+          color: 'var(--charcoal)',
+          border: isError ? '1px solid rgba(224,90,58,0.28)' : '1px solid rgba(138,167,255,0.32)',
+          backdropFilter: 'blur(22px) saturate(1.2)',
+          WebkitBackdropFilter: 'blur(22px) saturate(1.2)',
+          boxShadow: '0 18px 48px rgba(82, 55, 138, 0.22)',
+          fontFamily: 'var(--font-body)',
+        }}
+      >
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            background: isError ? 'rgba(224,90,58,0.14)' : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+            color: isError ? '#c24a2d' : 'white',
+            fontSize: 18,
+            fontWeight: 800,
+          }}
+        >
+          {isError ? '!' : '✓'}
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>
+            {isError ? 'Export failed' : 'Download ready'}
+          </span>
+          <span style={{ display: 'block', marginTop: 2, fontSize: 12.5, color: 'var(--warm-gray)', lineHeight: 1.35 }}>
+            {message}
+          </span>
+        </span>
+      </div>
+    </div>
   )
 }
 
