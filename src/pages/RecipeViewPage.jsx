@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore, TAG_COLORS } from '../store/useStore'
 import { exportSinglePDF, exportSingleDocx, exportToPDF, exportToDocx } from '../utils/export'
 import { scaleRecipe } from '../utils/recipeScaling'
+import ExportToast from '../components/ExportToast'
 
 function BackIcon() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -181,7 +182,12 @@ export default function RecipeViewPage() {
         )}
       </div>
 
-      {exportMessage && <ExportFeedback message={exportMessage} />}
+      {exportMessage && (
+        <ExportToast
+          message={exportMessage}
+          error={exportMessage.toLowerCase().includes('wrong')}
+        />
+      )}
 
       <div style={{ padding: '0 20px 32px' }}>
         <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.05s', textAlign: 'center', padding: '32px 0 24px' }}>
@@ -511,74 +517,6 @@ export default function RecipeViewPage() {
       {showExportMenu && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowExportMenu(false)} />
       )}
-    </div>
-  )
-}
-
-function ExportFeedback({ message }) {
-  const isError = message.toLowerCase().includes('failed')
-
-  return (
-    <div
-      className="no-print"
-      role="status"
-      aria-live="polite"
-      style={{
-        position: 'fixed',
-        left: 16,
-        right: 16,
-        bottom: 'calc(84px + env(safe-area-inset-bottom))',
-        zIndex: 1000,
-        display: 'flex',
-        justifyContent: 'center',
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        style={{
-          margin: 0,
-          maxWidth: 460,
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '14px 16px',
-          borderRadius: 20,
-          background: 'rgba(255,255,255,0.9)',
-          color: 'var(--charcoal)',
-          border: isError ? '1px solid rgba(224,90,58,0.28)' : '1px solid rgba(138,167,255,0.32)',
-          backdropFilter: 'blur(22px) saturate(1.2)',
-          WebkitBackdropFilter: 'blur(22px) saturate(1.2)',
-          boxShadow: '0 18px 48px rgba(82, 55, 138, 0.22)',
-          fontFamily: 'var(--font-body)',
-        }}
-      >
-        <span
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            background: isError ? 'rgba(224,90,58,0.14)' : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
-            color: isError ? '#c24a2d' : 'white',
-            fontSize: 18,
-            fontWeight: 800,
-          }}
-        >
-          {isError ? '!' : '✓'}
-        </span>
-        <span style={{ minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>
-            {isError ? 'Export failed' : 'Download ready'}
-          </span>
-          <span style={{ display: 'block', marginTop: 2, fontSize: 12.5, color: 'var(--warm-gray)', lineHeight: 1.35 }}>
-            {message}
-          </span>
-        </span>
-      </div>
     </div>
   )
 }
