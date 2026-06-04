@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { exportToPDF, exportToDocx } from '../utils/export'
 
@@ -28,6 +28,18 @@ export default function SettingsPage() {
   const [roleEmail, setRoleEmail] = useState('')
   const [roleValue, setRoleValue] = useState('admin')
   const [savingRole, setSavingRole] = useState(false)
+  const [selectedRecipeIds, setSelectedRecipeIds] = useState([])
+
+  useEffect(() => {
+    setSelectedRecipeIds((currentIds) => {
+      const availableIds = new Set(recipes.map((recipe) => recipe.id))
+      return currentIds.filter((id) => availableIds.has(id))
+    })
+  }, [recipes])
+
+  const selectedRecipes = recipes.filter((recipe) => selectedRecipeIds.includes(recipe.id))
+  const selectedRecipeCount = selectedRecipes.length
+  const allRecipesSelected = recipes.length > 0 && selectedRecipeCount === recipes.length
 
   const handleExport = async (type) => {
     setExporting(type)
@@ -35,11 +47,29 @@ export default function SettingsPage() {
     try {
       if (type === 'pdf') await exportToPDF(recipes)
       else if (type === 'docx') await exportToDocx(recipes)
+      else if (type === 'custom-pdf') await exportToPDF(selectedRecipes)
+      else if (type === 'custom-docx') await exportToDocx(selectedRecipes)
     } catch (error) {
       console.error(error)
     } finally {
       setExporting(null)
     }
+  }
+
+  const toggleSelectedRecipe = (recipeId) => {
+    setSelectedRecipeIds((currentIds) => (
+      currentIds.includes(recipeId)
+        ? currentIds.filter((id) => id !== recipeId)
+        : [...currentIds, recipeId]
+    ))
+  }
+
+  const selectAllRecipes = () => {
+    setSelectedRecipeIds(recipes.map((recipe) => recipe.id))
+  }
+
+  const clearSelectedRecipes = () => {
+    setSelectedRecipeIds([])
   }
 
   const handleExportJSON = () => {
@@ -161,6 +191,76 @@ export default function SettingsPage() {
       <SettingsSection title="Export Collection" icon="📥" delay="0.12s">
         <SettingsButton onClick={() => handleExport('pdf')} loading={exporting === 'pdf'} icon="📄" label="Export all as PDF" sub={`${recipes.length} recipes -> styled PDF`} />
         <SettingsButton onClick={() => handleExport('docx')} loading={exporting === 'docx'} icon="📝" label="Export all as Word" sub={`${recipes.length} recipes -> editable DOCX`} />
+        <div style={{ padding: 16, background: 'rgba(255,255,255,0.52)', borderRadius: 18, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)', marginBottom: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+            <div>
+              <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: 'var(--charcoal)' }}>
+                Custom export
+              </p>
+              <p style={{ margin: '3px 0 0', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)' }}>
+                {selectedRecipeCount} of {recipes.length} recipes selected
+              </p>
+            </div>
+            <button
+              onClick={allRecipesSelected ? clearSelectedRecipes : selectAllRecipes}
+              disabled={recipes.length === 0}
+              style={{ padding: '9px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.62)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: recipes.length === 0 ? 'default' : 'pointer', opacity: recipes.length === 0 ? 0.65 : 1 }}
+            >
+              {allRecipesSelected ? 'Clear' : 'Select All'}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', paddingRight: 2, marginBottom: 12 }}>
+            {recipes.length === 0 ? (
+              <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--light-warm)' }}>
+                No recipes available to export.
+              </p>
+            ) : (
+              recipes.map((recipe) => {
+                const checked = selectedRecipeIds.includes(recipe.id)
+                return (
+                  <label
+                    key={recipe.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, background: checked ? 'rgba(244,114,208,0.1)' : 'rgba(255,255,255,0.46)', border: checked ? '1px solid rgba(244,114,208,0.24)' : '1px solid rgba(255,255,255,0.5)', cursor: 'pointer' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelectedRecipe(recipe.id)}
+                      style={{ width: 18, height: 18, accentColor: 'var(--rose)', flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 20, lineHeight: 1 }}>{recipe.emoji || '🍴'}</span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {recipe.name}
+                      </span>
+                      <span style={{ display: 'block', fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--light-warm)' }}>
+                        {recipe.tag || 'Recipe'}
+                      </span>
+                    </span>
+                  </label>
+                )
+              })
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <button
+              onClick={() => handleExport('custom-pdf')}
+              disabled={selectedRecipeCount === 0 || exporting === 'custom-pdf'}
+              style={{ padding: '12px 10px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: selectedRecipeCount === 0 || exporting === 'custom-pdf' ? 'default' : 'pointer', opacity: selectedRecipeCount === 0 || exporting === 'custom-pdf' ? 0.65 : 1 }}
+            >
+              {exporting === 'custom-pdf' ? 'Exporting...' : 'Selected PDF'}
+            </button>
+            <button
+              onClick={() => handleExport('custom-docx')}
+              disabled={selectedRecipeCount === 0 || exporting === 'custom-docx'}
+              style={{ padding: '12px 10px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.62)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: selectedRecipeCount === 0 || exporting === 'custom-docx' ? 'default' : 'pointer', opacity: selectedRecipeCount === 0 || exporting === 'custom-docx' ? 0.65 : 1 }}
+            >
+              {exporting === 'custom-docx' ? 'Exporting...' : 'Selected Word'}
+            </button>
+          </div>
+        </div>
         <SettingsButton onClick={handleExportJSON} icon="💾" label="Backup recipes" sub="Export as JSON for safekeeping" />
       </SettingsSection>
 
