@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore, TAG_COLORS } from '../store/useStore'
 import { exportSinglePDF, exportSingleDocx, exportToPDF, exportToDocx } from '../utils/export'
 import { scaleRecipe } from '../utils/recipeScaling'
@@ -25,7 +25,18 @@ export default function RecipeViewPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportMessage, setExportMessage] = useState('')
   const [scaleFactorInput, setScaleFactorInput] = useState('1')
+
+  useEffect(() => {
+    if (!exportMessage) return undefined
+
+    const timeoutId = window.setTimeout(() => {
+      setExportMessage('')
+    }, 3500)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [exportMessage])
 
   if (!recipe) {
     setPage('library')
@@ -45,14 +56,17 @@ export default function RecipeViewPage() {
   const handleExport = async (type) => {
     setShowExportMenu(false)
     setExporting(true)
+    setExportMessage('')
 
     try {
       if (type === 'pdf-single') await exportSinglePDF(scaledRecipe)
       else if (type === 'docx-single') await exportSingleDocx(scaledRecipe)
       else if (type === 'pdf-all') await exportToPDF(recipes)
       else if (type === 'docx-all') await exportToDocx(recipes)
+      setExportMessage('Export done. Check your downloads.')
     } catch (error) {
       console.error(error)
+      setExportMessage('Export failed. Please try again.')
     } finally {
       setExporting(false)
     }
@@ -160,6 +174,8 @@ export default function RecipeViewPage() {
           </>
         )}
       </div>
+
+      {exportMessage && <ExportFeedback message={exportMessage} />}
 
       <div style={{ padding: '0 20px 32px' }}>
         <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.05s', textAlign: 'center', padding: '32px 0 24px' }}>
@@ -489,6 +505,32 @@ export default function RecipeViewPage() {
       {showExportMenu && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowExportMenu(false)} />
       )}
+    </div>
+  )
+}
+
+function ExportFeedback({ message }) {
+  const isError = message.toLowerCase().includes('failed')
+
+  return (
+    <div className="no-print" style={{ padding: '10px 20px 0' }}>
+      <p
+        role="status"
+        style={{
+          margin: 0,
+          padding: '10px 12px',
+          borderRadius: 14,
+          background: isError ? 'rgba(224,90,58,0.12)' : 'rgba(138,167,255,0.14)',
+          color: isError ? '#c24a2d' : 'var(--warm-gray)',
+          border: isError ? '1px solid rgba(224,90,58,0.18)' : '1px solid rgba(138,167,255,0.22)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          fontWeight: 600,
+          textAlign: 'center',
+        }}
+      >
+        {message}
+      </p>
     </div>
   )
 }

@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [roleValue, setRoleValue] = useState('admin')
   const [savingRole, setSavingRole] = useState(false)
   const [selectedRecipeIds, setSelectedRecipeIds] = useState([])
+  const [exportMessage, setExportMessage] = useState('')
 
   useEffect(() => {
     setSelectedRecipeIds((currentIds) => {
@@ -37,20 +38,33 @@ export default function SettingsPage() {
     })
   }, [recipes])
 
+  useEffect(() => {
+    if (!exportMessage) return undefined
+
+    const timeoutId = window.setTimeout(() => {
+      setExportMessage('')
+    }, 3500)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [exportMessage])
+
   const selectedRecipes = recipes.filter((recipe) => selectedRecipeIds.includes(recipe.id))
   const selectedRecipeCount = selectedRecipes.length
   const allRecipesSelected = recipes.length > 0 && selectedRecipeCount === recipes.length
 
   const handleExport = async (type) => {
     setExporting(type)
+    setExportMessage('')
 
     try {
       if (type === 'pdf') await exportToPDF(recipes)
       else if (type === 'docx') await exportToDocx(recipes)
       else if (type === 'custom-pdf') await exportToPDF(selectedRecipes)
       else if (type === 'custom-docx') await exportToDocx(selectedRecipes)
+      setExportMessage('Export done. Check your downloads.')
     } catch (error) {
       console.error(error)
+      setExportMessage('Export failed. Please try again.')
     } finally {
       setExporting(null)
     }
@@ -73,6 +87,7 @@ export default function SettingsPage() {
   }
 
   const handleExportJSON = () => {
+    setExportMessage('')
     const data = JSON.stringify(recipes, null, 2)
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -81,6 +96,7 @@ export default function SettingsPage() {
     anchor.download = `kaurscakery_recipes_${new Date().toISOString().slice(0, 10)}.json`
     anchor.click()
     URL.revokeObjectURL(url)
+    setExportMessage('Backup downloaded. Check your downloads.')
   }
 
   const handleImportJSON = (event) => {
@@ -262,6 +278,7 @@ export default function SettingsPage() {
           </div>
         </div>
         <SettingsButton onClick={handleExportJSON} icon="💾" label="Backup recipes" sub="Export as JSON for safekeeping" />
+        {exportMessage && <ExportFeedback message={exportMessage} />}
       </SettingsSection>
 
       <SettingsSection title="Install App" icon="📱" delay="0.16s">
@@ -424,6 +441,29 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function ExportFeedback({ message }) {
+  const isError = message.toLowerCase().includes('failed')
+
+  return (
+    <p
+      role="status"
+      style={{
+        margin: '8px 2px 0',
+        padding: '10px 12px',
+        borderRadius: 14,
+        background: isError ? 'rgba(224,90,58,0.12)' : 'rgba(138,167,255,0.14)',
+        color: isError ? '#c24a2d' : 'var(--warm-gray)',
+        border: isError ? '1px solid rgba(224,90,58,0.18)' : '1px solid rgba(138,167,255,0.22)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 13,
+        fontWeight: 600,
+      }}
+    >
+      {message}
+    </p>
   )
 }
 
