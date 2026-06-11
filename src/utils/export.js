@@ -289,6 +289,23 @@ export async function createRecipesPDFBlob(recipes, options = {}) {
   return doc.output('blob')
 }
 
+export async function createRecipesPDFPreviewImages(recipes, options = {}) {
+  const { includeCover = true } = options
+  const images = []
+
+  if (includeCover) {
+    const coverCanvas = await renderHtmlToCanvas(buildCoverHTML(recipes.length))
+    images.push(coverCanvas.toDataURL('image/jpeg', 0.74))
+  }
+
+  for (const recipe of recipes) {
+    const recipeCanvas = await renderHtmlToCanvas(buildRecipeHTML(recipe))
+    images.push(recipeCanvas.toDataURL('image/jpeg', 0.74))
+  }
+
+  return images
+}
+
 export async function exportToPDF(recipes, options = {}) {
   const blob = await createRecipesPDFBlob(recipes, options)
   saveAs(blob, recipesPdfFilename())

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../store/useStore'
-import { createRecipesPDFBlob, exportToPDF, exportToDocx, recipesPdfFilename } from '../utils/export'
+import { createRecipesPDFBlob, createRecipesPDFPreviewImages, exportToPDF, exportToDocx, recipesPdfFilename } from '../utils/export'
 import ExportToast from '../components/ExportToast'
 
 export default function SettingsPage() {
@@ -89,7 +89,10 @@ export default function SettingsPage() {
     setExportMessage('')
 
     try {
-      const blob = await createRecipesPDFBlob(selectedRecipes, { includeCover })
+      const [blob, pageImages] = await Promise.all([
+        createRecipesPDFBlob(selectedRecipes, { includeCover }),
+        createRecipesPDFPreviewImages(selectedRecipes, { includeCover }),
+      ])
       const url = URL.createObjectURL(blob)
       const filename = recipesPdfFilename()
 
@@ -100,6 +103,7 @@ export default function SettingsPage() {
           url,
           filename,
           includeCover,
+          pageImages,
         }
       })
       setShowCustomPdfOptions(false)
@@ -586,11 +590,18 @@ export default function SettingsPage() {
                 x
               </button>
             </div>
-            <iframe
-              title="Selected recipes PDF preview"
-              src={pdfPreview.url}
-              style={{ flex: 1, width: '100%', border: 'none', background: 'white' }}
-            />
+            <div style={{ flex: 1, overflowY: 'auto', background: '#ece8f7', padding: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                {pdfPreview.pageImages.map((pageImage, index) => (
+                  <img
+                    key={`${pageImage.slice(0, 36)}-${index}`}
+                    src={pageImage}
+                    alt={`PDF preview page ${index + 1}`}
+                    style={{ width: 'min(100%, 720px)', height: 'auto', display: 'block', borderRadius: 10, boxShadow: '0 10px 28px rgba(33,24,67,0.16)', background: 'white' }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       ), document.body)}
