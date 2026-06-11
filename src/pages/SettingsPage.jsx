@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useStore } from '../store/useStore'
-import { exportToPDF, exportToDocx } from '../utils/export'
+import { createRecipesPDFBlob, exportToPDF, exportToDocx, recipesPdfFilename } from '../utils/export'
 import ExportToast from '../components/ExportToast'
 
 export default function SettingsPage() {
@@ -32,6 +33,7 @@ export default function SettingsPage() {
   const [selectedRecipeIds, setSelectedRecipeIds] = useState([])
   const [exportMessage, setExportMessage] = useState('')
   const [showCustomPdfOptions, setShowCustomPdfOptions] = useState(false)
+  const [pdfPreview, setPdfPreview] = useState(null)
 
   useEffect(() => {
     setSelectedRecipeIds((currentIds) => {
@@ -50,6 +52,10 @@ export default function SettingsPage() {
     return () => window.clearTimeout(timeoutId)
   }, [exportMessage])
 
+  useEffect(() => () => {
+    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url)
+  }, [pdfPreview])
+
   const selectedRecipes = recipes.filter((recipe) => selectedRecipeIds.includes(recipe.id))
   const selectedRecipeCount = selectedRecipes.length
   const allRecipesSelected = recipes.length > 0 && selectedRecipeCount === recipes.length
@@ -67,8 +73,6 @@ export default function SettingsPage() {
     try {
       if (type === 'pdf') await exportToPDF(recipes)
       else if (type === 'docx') await exportToDocx(recipes)
-      else if (type === 'custom-pdf-cover') await exportToPDF(selectedRecipes, { includeCover: true })
-      else if (type === 'custom-pdf-recipes') await exportToPDF(selectedRecipes, { includeCover: false })
       else if (type === 'custom-docx') await exportToDocx(selectedRecipes)
       showExportMessage('Your export has been downloaded to this device.')
     } catch (error) {
@@ -76,8 +80,73 @@ export default function SettingsPage() {
       showExportMessage('Something went wrong. Please try exporting again.')
     } finally {
       setExporting(null)
-      if (type === 'custom-pdf-cover' || type === 'custom-pdf-recipes') {
-        setShowCustomPdfOptions(false)
+    }
+  }
+
+  const handlePrepareCustomPDF = async (includeCover) => {
+    const type = includeCover ? 'custom-pdf-cover' : 'custom-pdf-recipes'
+    setExporting(type)
+    setExportMessage('')
+
+    try {
+      const blob = await createRecipesPDFBlob(selectedRecipes, { includeCover })
+      const url = URL.createObjectURL(blob)
+      const filename = recipesPdfFilename()
+
+      setPdfPreview((currentPreview) => {
+        if (currentPreview?.url) URL.revokeObjectURL(currentPreview.url)
+        return {
+          blob,
+          url,
+          filename,
+          includeCover,
+        }
+      })
+      setShowCustomPdfOptions(false)
+    } catch (error) {
+      console.error(error)
+      showExportMessage('Something went wrong. Please try exporting again.')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  const closePdfPreview = () => {
+    setPdfPreview((currentPreview) => {
+      if (currentPreview?.url) URL.revokeObjectURL(currentPreview.url)
+      return null
+    })
+  }
+
+  const downloadPdfPreview = () => {
+    if (!pdfPreview) return
+
+    const anchor = document.createElement('a')
+    anchor.href = pdfPreview.url
+    anchor.download = pdfPreview.filename
+    anchor.click()
+    showExportMessage('Your PDF has been downloaded to this device.')
+  }
+
+  const sharePdfPreview = async () => {
+    if (!pdfPreview) return
+
+    try {
+      const file = new File([pdfPreview.blob], pdfPreview.filename, { type: 'application/pdf' })
+      if (!navigator.canShare?.({ files: [file] })) {
+        showExportMessage('PDF sharing is not supported in this browser. Please download and share it from WhatsApp.')
+        return
+      }
+
+      await navigator.share({
+        files: [file],
+        title: "Kaur's Cakery Recipes",
+        text: "Kaur's Cakery recipe PDF",
+      })
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        console.error(error)
+        showExportMessage('Something went wrong. Please try sharing again.')
       }
     }
   }
@@ -452,24 +521,24 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {showCustomPdfOptions && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(33,24,67,0.34)', backdropFilter: 'blur(4px)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowCustomPdfOptions(false)}>
-          <div onClick={(event) => event.stopPropagation()} style={{ background: 'rgba(248,246,255,0.92)', backdropFilter: 'blur(20px)', borderRadius: '28px 28px 0 0', padding: '24px 20px 48px', width: '100%', boxShadow: '0 -18px 44px rgba(33,24,67,0.16)' }}>
+      {showCustomPdfOptions && typeof document !== 'undefined' && createPortal((
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(33,24,67,0.34)', backdropFilter: 'blur(4px)', zIndex: 9997, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflow: 'hidden' }} onClick={() => setShowCustomPdfOptions(false)}>
+          <div onClick={(event) => event.stopPropagation()} style={{ background: 'rgba(248,246,255,0.94)', backdropFilter: 'blur(20px)', borderRadius: 24, padding: '22px 18px', width: '100%', maxWidth: 420, boxShadow: '0 22px 60px rgba(33,24,67,0.2)', border: '1px solid rgba(255,255,255,0.58)' }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(176,158,150,0.4)', margin: '0 auto 20px' }} />
-            <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--charcoal)' }}>Download selected PDF</h3>
+            <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--charcoal)' }}>Preview selected PDF</h3>
             <p style={{ margin: '0 0 18px', fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--warm-gray)' }}>
               Choose whether to include the first fixed cover page.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button
-                onClick={() => handleExport('custom-pdf-cover')}
+                onClick={() => handlePrepareCustomPDF(true)}
                 disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
                 style={{ padding: '15px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.7 : 1 }}
               >
                 {exporting === 'custom-pdf-cover' ? 'Exporting...' : 'With first fixed page'}
               </button>
               <button
-                onClick={() => handleExport('custom-pdf-recipes')}
+                onClick={() => handlePrepareCustomPDF(false)}
                 disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
                 style={{ padding: '15px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.66)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.7 : 1 }}
               >
@@ -485,7 +554,46 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
+
+      {pdfPreview && typeof document !== 'undefined' && createPortal((
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(33,24,67,0.38)', backdropFilter: 'blur(5px)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, overflow: 'hidden' }} onClick={closePdfPreview}>
+          <div onClick={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 920, height: 'min(86dvh, 760px)', maxHeight: 'calc(100dvh - 28px)', background: 'rgba(248,246,255,0.96)', border: '1px solid rgba(255,255,255,0.62)', borderRadius: 22, boxShadow: '0 26px 70px rgba(33,24,67,0.24)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 14px 12px', borderBottom: '1px solid rgba(169,127,255,0.16)' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--charcoal)' }}>PDF preview</h3>
+                <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)' }}>
+                  {pdfPreview.includeCover ? 'Includes first fixed page' : 'Starts with selected recipes'}
+                </p>
+              </div>
+              <button
+                onClick={downloadPdfPreview}
+                style={{ padding: '10px 12px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Download
+              </button>
+              <button
+                onClick={sharePdfPreview}
+                style={{ padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.62)', background: 'rgba(255,255,255,0.72)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Share
+              </button>
+              <button
+                onClick={closePdfPreview}
+                aria-label="Close PDF preview"
+                style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: 'rgba(176,158,150,0.15)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 18, lineHeight: 1, cursor: 'pointer' }}
+              >
+                x
+              </button>
+            </div>
+            <iframe
+              title="Selected recipes PDF preview"
+              src={pdfPreview.url}
+              style={{ flex: 1, width: '100%', border: 'none', background: 'white' }}
+            />
+          </div>
+        </div>
+      ), document.body)}
 
       {exportMessage && (
         <ExportToast

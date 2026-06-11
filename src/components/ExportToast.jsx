@@ -12,32 +12,33 @@ export default function ExportToast({ message, error = false }) {
         inset: 0,
         zIndex: 9999,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: 20,
+        padding: 'calc(14px + env(safe-area-inset-top)) 14px 14px',
         pointerEvents: 'none',
       }}
     >
       <div
         style={{
-          width: 'min(320px, 100%)',
-          padding: '26px 22px 22px',
-          borderRadius: 28,
+          width: 'min(340px, 100%)',
+          padding: '12px 14px',
+          borderRadius: 16,
           background: 'rgba(255,255,255,0.94)',
           border: error ? '1px solid rgba(224,90,58,0.28)' : '1px solid rgba(157,124,255,0.28)',
-          boxShadow: '0 24px 70px rgba(68, 43, 128, 0.28)',
-          backdropFilter: 'blur(24px) saturate(1.25)',
-          WebkitBackdropFilter: 'blur(24px) saturate(1.25)',
-          textAlign: 'center',
+          boxShadow: '0 14px 36px rgba(68,43,128,0.16)',
+          backdropFilter: 'blur(18px) saturate(1.2)',
+          WebkitBackdropFilter: 'blur(18px) saturate(1.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
           fontFamily: 'var(--font-body)',
-          animation: 'scaleIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both',
+          animation: 'fadeUp 0.25s cubic-bezier(0.4,0,0.2,1) both',
         }}
       >
         <div
           style={{
-            width: 76,
-            height: 76,
-            margin: '0 auto 16px',
+            width: 30,
+            height: 30,
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
@@ -46,35 +47,37 @@ export default function ExportToast({ message, error = false }) {
               ? 'rgba(224,90,58,0.14)'
               : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
             color: error ? '#c24a2d' : 'white',
-            fontSize: 42,
+            fontSize: 17,
             fontWeight: 900,
-            boxShadow: error ? 'none' : '0 16px 36px rgba(142,106,232,0.34)',
+            boxShadow: error ? 'none' : '0 8px 18px rgba(142,106,232,0.22)',
+            flexShrink: 0,
           }}
         >
-          {error ? '!' : '✓'}
+          {error ? '!' : 'OK'}
         </div>
-        <p
-          style={{
-            margin: '0 0 6px',
-            fontFamily: 'var(--font-display)',
-            fontSize: 24,
-            fontWeight: 700,
-            color: 'var(--charcoal)',
-            lineHeight: 1.15,
-          }}
-        >
-          {error ? 'Export Failed' : 'Downloaded'}
-        </p>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 14,
-            lineHeight: 1.5,
-            color: 'var(--warm-gray)',
-          }}
-        >
-          {message}
-        </p>
+        <div style={{ minWidth: 0 }}>
+          <p
+            style={{
+              margin: '0 0 2px',
+              fontSize: 13,
+              fontWeight: 700,
+              color: 'var(--charcoal)',
+              lineHeight: 1.2,
+            }}
+          >
+            {error ? 'Export failed' : 'Done'}
+          </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              lineHeight: 1.35,
+              color: 'var(--warm-gray)',
+            }}
+          >
+            {message}
+          </p>
+        </div>
       </div>
     </div>,
     document.body,
