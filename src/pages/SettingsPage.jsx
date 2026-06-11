@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const [savingRole, setSavingRole] = useState(false)
   const [selectedRecipeIds, setSelectedRecipeIds] = useState([])
   const [exportMessage, setExportMessage] = useState('')
+  const [showCustomPdfOptions, setShowCustomPdfOptions] = useState(false)
 
   useEffect(() => {
     setSelectedRecipeIds((currentIds) => {
@@ -44,7 +45,7 @@ export default function SettingsPage() {
 
     const timeoutId = window.setTimeout(() => {
       setExportMessage('')
-    }, 3500)
+    }, 5000)
 
     return () => window.clearTimeout(timeoutId)
   }, [exportMessage])
@@ -66,7 +67,8 @@ export default function SettingsPage() {
     try {
       if (type === 'pdf') await exportToPDF(recipes)
       else if (type === 'docx') await exportToDocx(recipes)
-      else if (type === 'custom-pdf') await exportToPDF(selectedRecipes)
+      else if (type === 'custom-pdf-cover') await exportToPDF(selectedRecipes, { includeCover: true })
+      else if (type === 'custom-pdf-recipes') await exportToPDF(selectedRecipes, { includeCover: false })
       else if (type === 'custom-docx') await exportToDocx(selectedRecipes)
       showExportMessage('Your export has been downloaded to this device.')
     } catch (error) {
@@ -74,6 +76,9 @@ export default function SettingsPage() {
       showExportMessage('Something went wrong. Please try exporting again.')
     } finally {
       setExporting(null)
+      if (type === 'custom-pdf-cover' || type === 'custom-pdf-recipes') {
+        setShowCustomPdfOptions(false)
+      }
     }
   }
 
@@ -269,11 +274,11 @@ export default function SettingsPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <button
-              onClick={() => handleExport('custom-pdf')}
-              disabled={selectedRecipeCount === 0 || exporting === 'custom-pdf'}
-              style={{ padding: '12px 10px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: selectedRecipeCount === 0 || exporting === 'custom-pdf' ? 'default' : 'pointer', opacity: selectedRecipeCount === 0 || exporting === 'custom-pdf' ? 0.65 : 1 }}
+              onClick={() => setShowCustomPdfOptions(true)}
+              disabled={selectedRecipeCount === 0 || exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
+              style={{ padding: '12px 10px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: selectedRecipeCount === 0 || exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: selectedRecipeCount === 0 || exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.65 : 1 }}
             >
-              {exporting === 'custom-pdf' ? 'Exporting...' : 'Selected PDF'}
+              {exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'Exporting...' : 'Selected PDF'}
             </button>
             <button
               onClick={() => handleExport('custom-docx')}
@@ -439,6 +444,41 @@ export default function SettingsPage() {
               <button
                 onClick={() => setShowClearConfirm(false)}
                 style={{ padding: '15px', borderRadius: 14, border: 'none', background: 'rgba(176,158,150,0.15)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 15, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCustomPdfOptions && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(33,24,67,0.34)', backdropFilter: 'blur(4px)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowCustomPdfOptions(false)}>
+          <div onClick={(event) => event.stopPropagation()} style={{ background: 'rgba(248,246,255,0.92)', backdropFilter: 'blur(20px)', borderRadius: '28px 28px 0 0', padding: '24px 20px 48px', width: '100%', boxShadow: '0 -18px 44px rgba(33,24,67,0.16)' }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(176,158,150,0.4)', margin: '0 auto 20px' }} />
+            <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--charcoal)' }}>Download selected PDF</h3>
+            <p style={{ margin: '0 0 18px', fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--warm-gray)' }}>
+              Choose whether to include the first fixed cover page.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={() => handleExport('custom-pdf-cover')}
+                disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
+                style={{ padding: '15px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.7 : 1 }}
+              >
+                {exporting === 'custom-pdf-cover' ? 'Exporting...' : 'With first fixed page'}
+              </button>
+              <button
+                onClick={() => handleExport('custom-pdf-recipes')}
+                disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
+                style={{ padding: '15px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.66)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.7 : 1 }}
+              >
+                {exporting === 'custom-pdf-recipes' ? 'Exporting...' : 'Without first fixed page'}
+              </button>
+              <button
+                onClick={() => setShowCustomPdfOptions(false)}
+                disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
+                style={{ padding: '13px', borderRadius: 14, border: 'none', background: 'rgba(176,158,150,0.15)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 14, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer' }}
               >
                 Cancel
               </button>

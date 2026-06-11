@@ -34,7 +34,7 @@ export default function RecipeViewPage() {
 
     const timeoutId = window.setTimeout(() => {
       setExportMessage('')
-    }, 3500)
+    }, 5000)
 
     return () => window.clearTimeout(timeoutId)
   }, [exportMessage])

@@ -268,12 +268,13 @@ async function appendCoverPage(doc, recipeCount) {
   drawCanvasOnPdfPage(doc, canvas)
 }
 
-export async function exportToPDF(recipes) {
+export async function exportToPDF(recipes, options = {}) {
+  const { includeCover = true } = options
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true })
-  await appendCoverPage(doc, recipes.length)
+  if (includeCover) await appendCoverPage(doc, recipes.length)
 
-  for (const recipe of recipes) {
-    await appendRecipePage(doc, recipe, false)
+  for (const [index, recipe] of recipes.entries()) {
+    await appendRecipePage(doc, recipe, includeCover ? false : index === 0)
   }
 
   doc.save(`Kaurs_Cakery_Recipes_${new Date().toISOString().slice(0, 10)}.pdf`)
