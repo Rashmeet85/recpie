@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore, TAGS } from '../store/useStore'
+import { normalizeMethodSteps } from '../utils/methodParser'
 
 const EMOJIS = ['🍰', '🎂', '🧁', '🍞', '🥐', '🥖', '🥨', '🍩', '🍪', '🫓', '🍕', '🍔', '🥖', '🌾', '🍫', '🎃']
 
@@ -87,7 +88,7 @@ export default function AddRecipePage() {
       ...form,
       id: editingRecipe?.id,
       ingredients: form.ingredients.filter(i => i.name.trim()),
-      method: form.method.filter(s => s.text.trim()).map(s => s.text),
+      method: normalizeMethodSteps(form.method),
       meta: form.meta.filter(m => m.label.trim()),
     }
     try {
