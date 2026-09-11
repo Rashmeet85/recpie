@@ -53,7 +53,11 @@ function splitWithIntlSegmenter(text) {
 }
 
 function splitWithFallback(text) {
-  return text.split(/(?<=[.!?])\s+/)
+  return text.split(/(?<=[.!?])\s*(?=[A-Z0-9])/)
+}
+
+function splitTightSentenceBoundaries(text) {
+  return text.split(/(?<=[.!?])\s*(?=[A-Z0-9])/)
 }
 
 function splitBlockIntoSteps(block) {
@@ -65,7 +69,10 @@ function splitBlockIntoSteps(block) {
 
   return lineBlocks.flatMap((line) => {
     const segments = splitWithIntlSegmenter(line) || splitWithFallback(line)
-    return segments.map(normalizeStepText).filter(Boolean)
+    return segments
+      .flatMap(splitTightSentenceBoundaries)
+      .map(normalizeStepText)
+      .filter(Boolean)
   })
 }
 
