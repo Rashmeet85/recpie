@@ -32,15 +32,31 @@ function protectInnerDots(text) {
   return protectedText
 }
 
+function prepareSentenceBoundaries(text) {
+  return text
+    .replace(/\.{2,}/g, '.')
+    .replace(/\s+([.!?])/g, '$1')
+}
+
 function restoreInnerDots(text) {
   return text.replaceAll(DOT_PLACEHOLDER, '.')
 }
 
 function normalizeStepText(text) {
-  return restoreInnerDots(text)
+  const normalized = restoreInnerDots(text)
     .replace(/\s+/g, ' ')
     .replace(/^(?:[-*]\s+|\d+[.)]\s*)/, '')
+    .replace(/\bnd\b/gi, 'and')
+    .replace(/\buh\b/gi, 'you')
+    .replace(/:\)/g, '😊')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/([,;:])(?=\S)/g, '$1 ')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
     .trim()
+
+  if (!normalized) return ''
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
 }
 
 function splitWithIntlSegmenter(text) {
@@ -53,19 +69,23 @@ function splitWithIntlSegmenter(text) {
 }
 
 function splitWithFallback(text) {
-  return text.split(/(?<=[.!?])\s*(?=[A-Z0-9])/)
+  return text.split(/(?<=[.!?])\s*(?=[A-Za-z0-9])/)
 }
 
 function splitTightSentenceBoundaries(text) {
-  return text.split(/(?<=[.!?])\s*(?=[A-Z0-9])/)
+  return text.split(/(?<=[.!?])\s*(?=[A-Za-z0-9])/)
+}
+
+function isListMarker(text) {
+  return /^(?:\*{0,2}\d+\*{0,2}|\d+[.)]|[-*])$/.test(text.trim())
 }
 
 function splitBlockIntoSteps(block) {
-  const protectedBlock = protectInnerDots(block)
+  const protectedBlock = prepareSentenceBoundaries(protectInnerDots(block))
   const lineBlocks = protectedBlock
     .split(/\n+/)
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line && !isListMarker(line))
 
   return lineBlocks.flatMap((line) => {
     const segments = splitWithIntlSegmenter(line) || splitWithFallback(line)
