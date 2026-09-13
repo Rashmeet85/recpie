@@ -1,5 +1,6 @@
 // Kaur's Cakery - Luxury Rose-Gold Stainless Steel Rotary Oven & Bakery Timer
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   useTimerStore,
   BAKERY_PRESETS,
@@ -1053,18 +1054,20 @@ export default function TimerPage() {
         )}
       </div>
 
-      {/* CUSTOM TIMER CREATION MODAL */}
-      {showCustomModal && (
+      {/* CUSTOM TIMER CREATION FLOATING WINDOW MODAL */}
+      {showCustomModal && typeof document !== 'undefined' && createPortal(
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(25, 20, 48, 0.45)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 300,
+            background: 'rgba(20, 14, 38, 0.58)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 10000,
             display: 'flex',
-            alignItems: 'flex-end',
-            padding: '0 0 env(safe-area-inset-bottom)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '18px',
           }}
           onClick={() => setShowCustomModal(false)}
         >
@@ -1072,20 +1075,70 @@ export default function TimerPage() {
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(25px)',
-              borderRadius: '24px 24px 0 0',
-              padding: '22px 20px 28px',
-              boxShadow: '0 -10px 40px rgba(78, 51, 143, 0.2)',
-              animation: 'slideUp 0.25s ease',
+              maxWidth: 390,
+              maxHeight: 'min(90dvh, 600px)',
+              background: 'linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 246, 255, 0.94) 100%)',
+              backdropFilter: 'blur(30px)',
+              WebkitBackdropFilter: 'blur(30px)',
+              borderRadius: 24,
+              padding: '24px 22px 22px',
+              border: '1px solid rgba(255, 255, 255, 0.9)',
+              boxShadow: '0 25px 60px -10px rgba(45, 25, 75, 0.35), 0 0 0 1px rgba(220, 205, 245, 0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              overflowY: 'auto',
             }}
           >
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(176, 158, 150, 0.4)', margin: '0 auto 16px' }} />
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg, rgba(255, 143, 220, 0.25), rgba(157, 124, 255, 0.25))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 20,
+                  }}
+                >
+                  ⏱️
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--charcoal)' }}>
+                    Add Custom Timer
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--warm-gray)' }}>
+                    Set custom bake or prep duration
+                  </p>
+                </div>
+              </div>
 
-            <h3 style={{ margin: '0 0 16px', fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700 }}>
-              Add Custom Kitchen Timer
-            </h3>
+              <button
+                type="button"
+                onClick={() => setShowCustomModal(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(151, 145, 190, 0.15)',
+                  color: 'var(--warm-gray)',
+                  fontSize: 16,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ✕
+              </button>
+            </div>
 
+            {/* Inputs */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 6 }}>
@@ -1097,34 +1150,82 @@ export default function TimerPage() {
                   value={customLabel}
                   onChange={(e) => setCustomLabel(e.target.value)}
                   className="input-field"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: 14 }}
+                  autoFocus
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 6 }}>
-                  Duration (Minutes)
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)' }}>
+                    Duration (Minutes)
+                  </label>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#9d7cff' }}>
+                    1 - 180 mins
+                  </span>
+                </div>
                 <input
                   type="number"
                   min="1"
-                  max="120"
+                  max="180"
                   value={customMinutes}
                   onChange={(e) => setCustomMinutes(e.target.value)}
                   className="input-field"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
                 />
+
+                {/* Quick Minute Preset Chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {[5, 10, 15, 20, 25, 30, 45, 60].map((mins) => {
+                    const isSelected = String(mins) === String(customMinutes)
+                    return (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => setCustomMinutes(String(mins))}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 10,
+                          border: isSelected
+                            ? '1px solid #9d7cff'
+                            : '1px solid rgba(151, 145, 190, 0.22)',
+                          background: isSelected
+                            ? 'linear-gradient(135deg, rgba(255, 143, 220, 0.25), rgba(157, 124, 255, 0.25))'
+                            : 'rgba(255, 255, 255, 0.7)',
+                          color: isSelected ? '#6f3fc8' : 'var(--warm-gray)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {mins}m
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                 <button
                   type="button"
                   onClick={() => {
                     const mins = parseInt(customMinutes, 10) || 1
+                    // Infer friendly emoji
+                    const name = customLabel.toLowerCase()
+                    let emoji = '⏱️'
+                    if (name.includes('cake')) emoji = '🎂'
+                    else if (name.includes('cookie') || name.includes('biscuit')) emoji = '🍪'
+                    else if (name.includes('cupcake') || name.includes('muffin')) emoji = '🧁'
+                    else if (name.includes('bread') || name.includes('proof') || name.includes('dough')) emoji = '🍞'
+                    else if (name.includes('pastry') || name.includes('croissant')) emoji = '🥐'
+                    else if (name.includes('chill') || name.includes('freeze') || name.includes('fridge')) emoji = '❄️'
+                    else if (name.includes('choc') || name.includes('ganache')) emoji = '🍫'
+
                     const t = addTimer({
                       label: customLabel.trim() || 'Custom Timer',
                       minutes: mins,
-                      emoji: '⏱️',
+                      emoji,
                     })
                     setActiveDialTimerId(t.id)
                     setCustomLabel('')
@@ -1133,7 +1234,7 @@ export default function TimerPage() {
                   }}
                   style={{
                     flex: 1,
-                    padding: '14px',
+                    padding: '13px',
                     borderRadius: 14,
                     border: 'none',
                     background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
@@ -1143,16 +1244,20 @@ export default function TimerPage() {
                     fontWeight: 700,
                     cursor: 'pointer',
                     boxShadow: '0 8px 20px rgba(142, 106, 232, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
                   }}
                 >
-                  Start Timer
+                  <span>✨</span> Start Timer
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowCustomModal(false)}
                   style={{
-                    padding: '14px 20px',
+                    padding: '13px 18px',
                     borderRadius: 14,
                     border: 'none',
                     background: 'rgba(151, 145, 190, 0.15)',
@@ -1168,7 +1273,8 @@ export default function TimerPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
