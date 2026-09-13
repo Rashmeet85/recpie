@@ -1,4 +1,4 @@
-// Kaur's Cakery - Brushed Stainless Steel Circular Rotary Oven & Microwave Timer
+// Kaur's Cakery - 3D Brushed Stainless Steel Circular Rotary Oven & Microwave Timer
 import { useState, useEffect, useRef } from 'react'
 import { useTimerStore, BAKERY_PRESETS, playDialRatchetClick, playMicrowaveKeyBeep } from '../store/useTimerStore'
 
@@ -23,7 +23,7 @@ export default function TimerPage() {
     stopAllAlarms,
   } = useTimerStore()
 
-  // Staged Rotary Dial State (in minutes, 0 to 60)
+  // Staged Rotary Dial State (minutes, 1 to 60)
   const [stagedMinutes, setStagedMinutes] = useState(25)
   const [stagedLabel, setStagedLabel] = useState('Cake Sponge')
   const [stagedEmoji, setStagedEmoji] = useState('🎂')
@@ -36,11 +36,10 @@ export default function TimerPage() {
   const dialRef = useRef(null)
   const lastClickAngleRef = useRef(0)
 
-  // Find currently linked dial timer, or default to the most active/ringing timer
+  // Find currently linked timer, or auto-link to the running/ringing timer
   const activeTimer = timers.find((t) => t.id === activeDialTimerId) || null
   const ringingTimers = timers.filter((t) => t.status === 'ringing')
 
-  // Synchronize: if no timer is selected, but one is running/ringing, auto-link to it
   useEffect(() => {
     if (!activeDialTimerId && timers.length > 0) {
       const runningOrRinging = timers.find((t) => t.status === 'running' || t.status === 'ringing')
@@ -50,14 +49,13 @@ export default function TimerPage() {
     }
   }, [activeDialTimerId, timers])
 
-  // Calculate current angle (0° = top/0m, 360° = 60m)
+  // Calculate current angle (0° = 12 o'clock / 0m, 360° = 60m)
   let currentAngle = 0
   let displayMinutes = '25'
   let displaySeconds = '00'
   let isRunning = false
   let isPaused = false
   let isRinging = false
-  let progressFraction = 0 // 0 to 1
 
   if (activeTimer) {
     const formatted = formatTime(activeTimer.remainingSeconds)
@@ -68,22 +66,19 @@ export default function TimerPage() {
     isPaused = activeTimer.status === 'paused'
     isRinging = activeTimer.status === 'ringing'
 
-    // Total fraction remaining (up to 60 minutes)
     const remainingMins = activeTimer.remainingSeconds / 60
     currentAngle = (Math.min(60, remainingMins) / 60) * 360
-    progressFraction = Math.min(1, Math.max(0, activeTimer.remainingSeconds / activeTimer.totalDurationSeconds))
   } else {
     currentAngle = (stagedMinutes / 60) * 360
     const m = Math.floor(stagedMinutes)
     const s = Math.round((stagedMinutes - m) * 60)
     displayMinutes = String(m).padStart(2, '0')
     displaySeconds = String(s).padStart(2, '0')
-    progressFraction = stagedMinutes / 60
   }
 
   // Handle Touch / Mouse Rotary Drag
   const updateAngleFromPointer = (clientX, clientY) => {
-    if (!dialRef.current) return
+    if (!dialRef.current || clientX === undefined || clientY === undefined) return
     const rect = dialRef.current.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
@@ -91,19 +86,15 @@ export default function TimerPage() {
     const dx = clientX - centerX
     const dy = clientY - centerY
 
-    // Standard theta (0 at 3 o'clock)
     let theta = Math.atan2(dy, dx) * (180 / Math.PI)
-    // Shift so 0° is 12 o'clock (top)
     let clockAngle = (theta + 90 + 360) % 360
 
-    // Sound effect every 6 degrees (1 minute)
+    // Sound effect on every 6 degrees (1 minute step)
     if (Math.abs(clockAngle - lastClickAngleRef.current) >= 6) {
       playDialRatchetClick()
       lastClickAngleRef.current = clockAngle
     }
 
-    // Convert clock angle to minutes (0 to 60)
-    // Snap to nearest 1 minute
     let calculatedMinutes = Math.round((clockAngle / 360) * 60)
     if (calculatedMinutes <= 0 && clockAngle > 300) {
       calculatedMinutes = 60
@@ -112,7 +103,6 @@ export default function TimerPage() {
     }
 
     if (activeTimer) {
-      // If a timer is already running or paused, dragging updates its remaining time
       const newSeconds = calculatedMinutes * 60
       addTimeToTimer(activeTimer.id, newSeconds - activeTimer.remainingSeconds)
     } else {
@@ -122,19 +112,23 @@ export default function TimerPage() {
 
   const handlePointerDown = (e) => {
     setIsDragging(true)
-    updateAngleFromPointer(e.clientX || e.touches?.[0]?.clientX, e.clientY || e.touches?.[0]?.clientY)
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY
+    updateAngleFromPointer(clientX, clientY)
   }
 
   const handlePointerMove = (e) => {
     if (!isDragging) return
-    updateAngleFromPointer(e.clientX || e.touches?.[0]?.clientX, e.clientY || e.touches?.[0]?.clientY)
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY
+    updateAngleFromPointer(clientX, clientY)
   }
 
   const handlePointerUp = () => {
     setIsDragging(false)
   }
 
-  // Quick Adjustment Steppers
+  // Stepper Controls
   const handleNudge = (deltaMinutes) => {
     playDialRatchetClick()
     if (activeTimer) {
@@ -149,12 +143,11 @@ export default function TimerPage() {
     if (activeTimer) {
       addTimeToTimer(activeTimer.id, 30)
     } else {
-      // Add 0.5 minutes
       setStagedMinutes((prev) => Math.min(60, prev + 0.5))
     }
   }
 
-  // 1-Tap Preset Launch
+  // 1-Tap Preset
   const handlePresetSelect = (preset) => {
     playDialRatchetClick()
     setStagedMinutes(preset.minutes)
@@ -163,7 +156,7 @@ export default function TimerPage() {
     setActiveDialTimerId(null)
   }
 
-  // Primary Start / Pause Control
+  // Start / Pause
   const handleStartOrPause = () => {
     playMicrowaveKeyBeep()
     if (activeTimer) {
@@ -178,7 +171,6 @@ export default function TimerPage() {
       return
     }
 
-    // Start new timer from staged minutes
     const totalSecs = Math.max(30, Math.round(stagedMinutes * 60))
     const t = addTimer({
       label: stagedLabel || 'Oven Timer',
@@ -204,22 +196,22 @@ export default function TimerPage() {
     setStagedEmoji('⏱️')
   }
 
-  // SVG Gauge calculations
-  const radius = 98
+  // SVG Gauge calculations (Viewbox 240x240)
+  const radius = 86
   const circumference = 2 * Math.PI * radius
-  // Dash offset representing time remaining along the circle
   const strokeDashoffset = circumference - (Math.min(360, currentAngle) / 360) * circumference
 
   return (
     <div
-      style={{ padding: '0 0 54px', minHeight: '100dvh', userSelect: 'none' }}
+      style={{ padding: '0 0 54px', minHeight: '100dvh', userSelect: 'none', overflowX: 'hidden' }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
     >
       {/* Top Header */}
       <div
         style={{
-          padding: '46px 18px 10px',
+          padding: '44px 18px 10px',
           background: 'linear-gradient(180deg, rgba(250,248,255,0.95) 75%, rgba(250,248,255,0) 100%)',
         }}
       >
@@ -228,7 +220,7 @@ export default function TimerPage() {
             <p style={{ margin: 0, fontSize: 11, fontFamily: 'var(--font-body)', color: 'var(--light-warm)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
               Kaur&apos;s Cakery Kitchen
             </p>
-            <h1 style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 29, fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+            <h1 style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
               Oven & Bakery Timer
             </h1>
           </div>
@@ -308,139 +300,133 @@ export default function TimerPage() {
         </div>
       )}
 
-      {/* HERO ROTARY OVEN DIAL SECTION */}
-      <div style={{ padding: '4px 16px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Dial Container with Side Stepper Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', maxWidth: 380 }}>
-          {/* Left Step (-1m) */}
-          <button
-            type="button"
-            onClick={() => handleNudge(-1)}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              border: '1.5px solid rgba(255,255,255,0.9)',
-              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
-              boxShadow: '0 6px 16px rgba(100, 90, 130, 0.12), inset 0 1px 0 #ffffff',
-              color: 'var(--charcoal)',
-              fontSize: 18,
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-            aria-label="Minus 1 minute"
-          >
-            –
-          </button>
-
-          {/* MAIN CIRCULAR STEEL KNOB */}
+      {/* HERO 3D ROTARY OVEN DIAL SECTION */}
+      <div style={{ padding: '8px 16px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        
+        {/* RECESSED 3D BASE DISH (Appliance cutout bezel) */}
+        <div
+          style={{
+            position: 'relative',
+            width: 'min(272px, 80vw)',
+            height: 'min(272px, 80vw)',
+            aspectRatio: '1 / 1',
+            borderRadius: '50%',
+            background: 'linear-gradient(145deg, #d8dde6, #f3f5f8)',
+            boxShadow: `
+              inset 0 4px 10px rgba(0, 0, 0, 0.22),
+              inset 0 -3px 6px rgba(255, 255, 255, 0.9),
+              0 14px 34px rgba(78, 62, 125, 0.16)
+            `,
+            border: '1.5px solid rgba(255, 255, 255, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            margin: '0 auto',
+          }}
+        >
+          {/* MAIN 3D ROTARY CYLINDER KNOB (Touches and rotates) */}
           <div
             ref={dialRef}
             onPointerDown={handlePointerDown}
             style={{
               position: 'relative',
-              width: 270,
-              height: 270,
+              width: '90%',
+              height: '90%',
               borderRadius: '50%',
               background: `
-                radial-gradient(circle at 35% 30%, #ffffff 0%, transparent 45%),
-                conic-gradient(from 45deg, #f2f4f8 0deg, #d3d9e2 45deg, #ffffff 90deg, #b8c1ce 135deg, #f6f8fb 180deg, #d3d9e2 225deg, #ffffff 270deg, #b0bac8 315deg, #f2f4f8 360deg)
+                radial-gradient(circle at 35% 28%, #ffffff 0%, #e2e6ec 32%, #b5becc 72%, #8e99a8 100%)
               `,
               boxShadow: `
-                0 22px 50px rgba(78, 62, 125, 0.22),
-                0 8px 18px rgba(0, 0, 0, 0.12),
-                inset 0 3px 6px rgba(255, 255, 255, 0.95),
-                inset 0 -4px 8px rgba(0, 0, 0, 0.22)
+                0 12px 28px rgba(18, 14, 32, 0.35),
+                0 4px 10px rgba(0, 0, 0, 0.2),
+                inset 0 2px 4px rgba(255, 255, 255, 0.95),
+                inset 0 -3px 6px rgba(0, 0, 0, 0.28)
               `,
-              border: '3.5px solid #ffffff',
+              border: '2.5px solid #ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: isDragging ? 'grabbing' : 'grab',
               touchAction: 'none',
+              flexShrink: 0,
             }}
           >
             {/* Knurled Outer Metallic Grip Ring */}
             <div
               style={{
                 position: 'absolute',
-                inset: 6,
+                inset: 5,
                 borderRadius: '50%',
-                border: '1px dashed rgba(160, 170, 185, 0.6)',
+                border: '1.5px dashed rgba(140, 150, 168, 0.55)',
                 pointerEvents: 'none',
               }}
             />
 
-            {/* SVG Graduation Dial Marks (0, 5, 10, 15... 60) */}
+            {/* SVG Graduation Dial Marks (0, 5, 10, 15... 60) & Progress Arc */}
             <svg
-              width="270"
-              height="270"
-              viewBox="0 0 270 270"
-              style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+              viewBox="0 0 240 240"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
             >
               {/* 60 Minute Tick Marks */}
               {[...Array(60)].map((_, i) => {
                 const tickAngle = (i / 60) * 360
                 const isMajor = i % 5 === 0
-                const tickLength = isMajor ? 9 : 4.5
-                const tickWidth = isMajor ? 2.5 : 1
-                const tickColor = isMajor ? '#687282' : '#a8b2c0'
+                const tickLength = isMajor ? 8 : 4
+                const tickWidth = isMajor ? 2.2 : 1
+                const tickColor = isMajor ? '#4a5568' : '#9aa5b6'
 
                 return (
                   <line
                     key={i}
-                    x1="135"
-                    y1={13}
-                    x2="135"
-                    y2={13 + tickLength}
+                    x1="120"
+                    y1={12}
+                    x2="120"
+                    y2={12 + tickLength}
                     stroke={tickColor}
                     strokeWidth={tickWidth}
                     strokeLinecap="round"
-                    transform={`rotate(${tickAngle} 135 135)`}
+                    transform={`rotate(${tickAngle} 120 120)`}
                   />
                 )
               })}
 
               {/* Number Labels: 0, 15, 30, 45 */}
-              <text x="135" y="36" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+              <text x="120" y="32" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
                 0
               </text>
-              <text x="238" y="139" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+              <text x="212" y="124" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
                 15
               </text>
-              <text x="135" y="244" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+              <text x="120" y="218" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
                 30
               </text>
-              <text x="32" y="139" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+              <text x="28" y="124" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
                 45
               </text>
 
               {/* Circular Glowing Rose/Lavender Progress Track */}
               <circle
-                cx="135"
-                cy="135"
+                cx="120"
+                cy="120"
                 r={radius}
                 fill="none"
-                stroke="rgba(157, 124, 255, 0.12)"
-                strokeWidth="6"
+                stroke="rgba(157, 124, 255, 0.14)"
+                strokeWidth="5"
               />
               <circle
-                cx="135"
-                cy="135"
+                cx="120"
+                cy="120"
                 r={radius}
                 fill="none"
                 stroke="url(#progressGradient)"
-                strokeWidth="6"
+                strokeWidth="5"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
-                transform="rotate(-90 135 135)"
+                transform="rotate(-90 120 120)"
                 style={{
-                  filter: 'drop-shadow(0 0 6px rgba(244, 114, 208, 0.6))',
+                  filter: 'drop-shadow(0 0 6px rgba(244, 114, 208, 0.7))',
                   transition: isDragging ? 'none' : 'stroke-dashoffset 0.3s ease',
                 }}
               />
@@ -453,7 +439,7 @@ export default function TimerPage() {
               </defs>
             </svg>
 
-            {/* ROTATING METALLIC NEEDLE & ROSE-GOLD POINTER */}
+            {/* ROTATING 3D METALLIC NEEDLE & ROSE-GOLD POINTER */}
             <div
               style={{
                 position: 'absolute',
@@ -466,37 +452,41 @@ export default function TimerPage() {
                 transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2,0,0,1)',
               }}
             >
-              {/* Pointer Tip Arrow with Rose-Gold Accent */}
+              {/* 3D Rose-Gold Indicator Bead with Under-Shadow */}
               <div
                 style={{
                   position: 'absolute',
-                  top: 7,
+                  top: 6,
                   left: '50%',
                   transform: 'translateX(-50%)',
                   width: 14,
                   height: 14,
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
-                  boxShadow: '0 0 10px rgba(244, 114, 208, 0.85), 0 2px 4px rgba(0,0,0,0.3)',
+                  background: 'radial-gradient(circle at 35% 30%, #ffffff 0%, #ff8fdc 45%, #b652aa 100%)',
+                  boxShadow: `
+                    0 3px 6px rgba(0, 0, 0, 0.4),
+                    0 0 10px rgba(244, 114, 208, 0.9)
+                  `,
                   border: '2px solid #ffffff',
                 }}
               />
-              {/* Needle Stem */}
+              {/* Embossed Metallic Pointer Stem */}
               <div
                 style={{
                   position: 'absolute',
-                  top: 20,
+                  top: 18,
                   left: '50%',
                   transform: 'translateX(-50%)',
-                  width: 3,
-                  height: 18,
-                  background: 'linear-gradient(180deg, #ff8fdc, rgba(255,255,255,0.8))',
+                  width: 3.5,
+                  height: 15,
+                  background: 'linear-gradient(180deg, #ff8fdc 0%, rgba(255,255,255,0.9) 100%)',
                   borderRadius: 2,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                 }}
               />
             </div>
 
-            {/* CENTER DIGITAL GLASS DISPLAY CORE */}
+            {/* RECESSED CENTER DIGITAL GLASS DISPLAY CORE */}
             <div
               onClick={(e) => {
                 e.stopPropagation()
@@ -504,14 +494,14 @@ export default function TimerPage() {
               }}
               style={{
                 position: 'relative',
-                width: 164,
-                height: 164,
+                width: '63%',
+                height: '63%',
                 borderRadius: '50%',
-                background: 'radial-gradient(circle at 35% 30%, #1e192e 0%, #110d1f 100%)',
+                background: 'radial-gradient(circle at 35% 25%, #201a33 0%, #0c0817 100%)',
                 boxShadow: `
-                  inset 0 4px 14px rgba(0, 0, 0, 0.75),
-                  0 4px 12px rgba(255, 255, 255, 0.6),
-                  0 -2px 6px rgba(0,0,0,0.15)
+                  inset 0 6px 14px rgba(0, 0, 0, 0.85),
+                  inset 0 -2px 6px rgba(255, 255, 255, 0.15),
+                  0 4px 10px rgba(255, 255, 255, 0.6)
                 `,
                 border: '2px solid rgba(255, 255, 255, 0.18)',
                 display: 'flex',
@@ -520,18 +510,19 @@ export default function TimerPage() {
                 justifyContent: 'center',
                 cursor: 'pointer',
                 zIndex: 2,
+                flexShrink: 0,
               }}
             >
-              {/* Subtle Glare Reflex */}
+              {/* Convex Glass Glare Reflection */}
               <div
                 style={{
                   position: 'absolute',
-                  top: 8,
-                  left: 24,
-                  right: 24,
-                  height: 34,
+                  top: 6,
+                  left: 18,
+                  right: 18,
+                  height: 30,
                   borderRadius: '50%',
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 100%)',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 100%)',
                   pointerEvents: 'none',
                 }}
               />
@@ -540,7 +531,7 @@ export default function TimerPage() {
               <span
                 style={{
                   fontFamily: '"SF Mono", monospace',
-                  fontSize: 9.5,
+                  fontSize: 9,
                   fontWeight: 700,
                   letterSpacing: '0.08em',
                   color: isRinging ? '#ff4b4b' : isRunning ? '#ff8fdc' : isPaused ? '#ffb84d' : '#9ca8c2',
@@ -551,11 +542,11 @@ export default function TimerPage() {
                 {isRinging ? '🔔 TIME IS UP!' : isRunning ? '♨️ BAKING' : isPaused ? '⏸ PAUSED' : '● ROTATE DIAL'}
               </span>
 
-              {/* Large Glowing Digital Readout */}
+              {/* Glowing Digital Time Readout */}
               <div
                 style={{
                   fontFamily: '"SF Mono", Monaco, "Courier New", monospace',
-                  fontSize: 38,
+                  fontSize: 'clamp(28px, 8vw, 36px)',
                   fontWeight: 800,
                   letterSpacing: '0.04em',
                   lineHeight: 1,
@@ -569,20 +560,20 @@ export default function TimerPage() {
                     : isRunning
                       ? 'drop-shadow(0 0 10px rgba(244,114,208,0.7))'
                       : 'drop-shadow(0 0 6px rgba(255,255,255,0.3))',
-                  margin: '4px 0',
+                  margin: '3px 0',
                 }}
               >
                 {displayMinutes}:{displaySeconds}
               </div>
 
-              {/* Item Label & Tap Prompt */}
+              {/* Food / Preset Label */}
               <span
                 style={{
                   fontFamily: 'var(--font-body)',
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: 600,
                   color: '#b6c2db',
-                  maxWidth: 130,
+                  maxWidth: 110,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -592,106 +583,96 @@ export default function TimerPage() {
                 {activeTimer ? `${activeTimer.emoji || '⏱️'} ${activeTimer.label}` : `${stagedEmoji} ${stagedLabel}`}
               </span>
 
-              <span style={{ fontSize: 9.5, color: '#ff8fdc', fontWeight: 700, marginTop: 4 }}>
+              <span style={{ fontSize: 9, color: '#ff8fdc', fontWeight: 700, marginTop: 3 }}>
                 {isRunning ? 'TAP TO PAUSE' : 'TAP TO START'}
               </span>
             </div>
           </div>
-
-          {/* Right Step (+1m) */}
-          <button
-            type="button"
-            onClick={() => handleNudge(1)}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              border: '1.5px solid rgba(255,255,255,0.9)',
-              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
-              boxShadow: '0 6px 16px rgba(100, 90, 130, 0.12), inset 0 1px 0 #ffffff',
-              color: 'var(--charcoal)',
-              fontSize: 18,
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-            aria-label="Plus 1 minute"
-          >
-            +
-          </button>
         </div>
 
-        {/* Quick Interval Nudge Pills */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+        {/* ERGONOMIC STEPPER CONTROLS BAR (Directly below dial, never squeezing) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={() => handleNudge(-1)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 14,
+              border: '1px solid rgba(255,255,255,0.9)',
+              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
+              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
+              color: 'var(--charcoal)',
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            – 1m
+          </button>
+
           <button
             type="button"
             onClick={handleAdd30s}
             style={{
-              padding: '6px 12px',
+              padding: '8px 14px',
               borderRadius: 14,
-              border: '1px solid rgba(255,255,255,0.85)',
-              background: 'rgba(255,255,255,0.7)',
-              backdropFilter: 'blur(10px)',
-              fontSize: 12,
-              fontWeight: 700,
+              border: '1px solid rgba(255,255,255,0.9)',
+              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
+              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
               color: 'var(--charcoal)',
+              fontSize: 13,
+              fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(94, 61, 165, 0.05)',
             }}
           >
-            +30s
+            + 30s
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNudge(1)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 14,
+              border: '1px solid rgba(255,255,255,0.9)',
+              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
+              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
+              color: 'var(--charcoal)',
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            + 1m
           </button>
 
           <button
             type="button"
             onClick={() => handleNudge(5)}
             style={{
-              padding: '6px 12px',
+              padding: '8px 14px',
               borderRadius: 14,
-              border: '1px solid rgba(255,255,255,0.85)',
-              background: 'rgba(255,255,255,0.7)',
-              backdropFilter: 'blur(10px)',
-              fontSize: 12,
-              fontWeight: 700,
+              border: '1px solid rgba(255,255,255,0.9)',
+              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
+              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
               color: 'var(--charcoal)',
+              fontSize: 13,
+              fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(94, 61, 165, 0.05)',
             }}
           >
-            +5m
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleNudge(10)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 14,
-              border: '1px solid rgba(255,255,255,0.85)',
-              background: 'rgba(255,255,255,0.7)',
-              backdropFilter: 'blur(10px)',
-              fontSize: 12,
-              fontWeight: 700,
-              color: 'var(--charcoal)',
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(94, 61, 165, 0.05)',
-            }}
-          >
-            +10m
+            + 5m
           </button>
         </div>
 
         {/* MAIN DUAL ACTION BUTTONS (Start/Pause & Reset) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12, width: '100%', maxWidth: 360, marginTop: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 10, width: '100%', maxWidth: 320, marginTop: 16 }}>
           {/* START / PAUSE */}
           <button
             type="button"
             onClick={handleStartOrPause}
             style={{
-              padding: '15px 20px',
+              padding: '14px 18px',
               borderRadius: 18,
               border: 'none',
               background: isRunning
@@ -699,7 +680,7 @@ export default function TimerPage() {
                 : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
               color: 'white',
               fontFamily: 'var(--font-body)',
-              fontSize: 15,
+              fontSize: 14.5,
               fontWeight: 700,
               letterSpacing: '0.03em',
               cursor: 'pointer',
@@ -719,13 +700,13 @@ export default function TimerPage() {
             type="button"
             onClick={handleReset}
             style={{
-              padding: '15px 20px',
+              padding: '14px 18px',
               borderRadius: 18,
               border: '1.5px solid rgba(255, 255, 255, 0.9)',
               background: 'linear-gradient(135deg, #ffffff, #e5e8f0)',
               color: 'var(--charcoal)',
               fontFamily: 'var(--font-body)',
-              fontSize: 14.5,
+              fontSize: 14,
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
