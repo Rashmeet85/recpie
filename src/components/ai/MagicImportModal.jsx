@@ -11,7 +11,8 @@ export default function MagicImportModal({ isOpen, onClose, onImportRecipe }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [extractedRecipe, setExtractedRecipe] = useState(null)
-  const fileInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
+  const galleryInputRef = useRef(null)
 
   if (!isOpen || typeof document === 'undefined') return null
 
@@ -318,51 +319,86 @@ export default function MagicImportModal({ isOpen, onClose, onImportRecipe }) {
             /* Scan Photo Tab */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center' }}>
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
                 onChange={handlePhotoSelect}
                 style={{ display: 'none' }}
               />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoSelect}
+                style={{ display: 'none' }}
+              />
 
               {!photoData ? (
                 <div
-                  onClick={() => fileInputRef.current?.click()}
                   style={{
-                    padding: '36px 16px',
+                    padding: '28px 16px',
                     borderRadius: 18,
                     border: '2px dashed rgba(180, 149, 255, 0.45)',
                     background: 'rgba(255, 255, 255, 0.4)',
-                    cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 10,
+                    gap: 12,
                   }}
                 >
-                  <span style={{ fontSize: 42 }}>📸</span>
+                  <span style={{ fontSize: 38 }}>📖</span>
                   <div>
                     <p style={{ margin: '0 0 4px', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: 'var(--charcoal)' }}>
-                      Take Photo or Upload Note
+                      Recipe Note Photo
                     </p>
-                    <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--warm-gray)' }}>
-                      Snap a photo of your handwritten notebook or cookbook page
+                    <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--warm-gray)', maxWidth: 280 }}>
+                      Snap handwritten notebook pages, cookbook photos, or screenshots from your gallery
                     </p>
                   </div>
-                  <span
-                    style={{
-                      marginTop: 6,
-                      padding: '8px 16px',
-                      borderRadius: 12,
-                      background: 'linear-gradient(135deg, rgba(255,224,245,0.8), rgba(220,227,255,0.8))',
-                      color: 'var(--rose)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Choose Photo
-                  </span>
+
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: 14,
+                        background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                        color: 'white',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: '0 6px 16px rgba(142, 106, 232, 0.25)',
+                      }}
+                    >
+                      <span>📸</span> Take Photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: 14,
+                        background: 'rgba(255, 255, 255, 0.85)',
+                        border: '1px solid rgba(151, 145, 190, 0.35)',
+                        color: 'var(--charcoal)',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: '0 4px 12px rgba(68, 43, 128, 0.08)',
+                      }}
+                    >
+                      <span>🖼️</span> Pick from Gallery
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
@@ -388,21 +424,46 @@ export default function MagicImportModal({ isOpen, onClose, onImportRecipe }) {
                     <span>✨</span> Auto-contrast active (paper stains reduced & ink sharpened)
                   </div>
 
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 10,
-                      border: '1px solid rgba(151, 145, 190, 0.3)',
-                      background: 'rgba(255,255,255,0.6)',
-                      color: 'var(--warm-gray)',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Retake / Choose Another Photo
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 10,
+                        border: '1px solid rgba(151, 145, 190, 0.3)',
+                        background: 'rgba(255,255,255,0.7)',
+                        color: 'var(--warm-gray)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <span>📸</span> Retake
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 10,
+                        border: '1px solid rgba(151, 145, 190, 0.3)',
+                        background: 'rgba(255,255,255,0.7)',
+                        color: 'var(--warm-gray)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <span>🖼️</span> Choose from Gallery
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

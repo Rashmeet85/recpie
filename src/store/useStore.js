@@ -6,15 +6,20 @@ import { auth, db, googleProvider } from '../lib/firebase'
 
 const DB_NAME = 'kaurscakery'
 const STORE_NAME = 'recipes'
-const DB_VERSION = 1
+const ORDERS_STORE = 'orders'
+const DB_VERSION = 2
 const OWNER_EMAIL = 'h.r17731785@gmail.com'
 const ROLES_COLLECTION = 'roles'
+const ORDERS_COLLECTION = 'orders'
 
 async function getLocalDB() {
   return openDB(DB_NAME, DB_VERSION, {
     upgrade(database) {
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         database.createObjectStore(STORE_NAME, { keyPath: 'id' })
+      }
+      if (!database.objectStoreNames.contains(ORDERS_STORE)) {
+        database.createObjectStore(ORDERS_STORE, { keyPath: 'id' })
       }
     },
   })
@@ -278,6 +283,129 @@ async function deleteLocalRecipe(id) {
   }
 }
 
+export function getLocalDateString(date = new Date()) {
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function normalizeOrders(orders) {
+  return (orders || [])
+    .map((order) => {
+      const total = Number(order.totalPrice) || 0
+      const advance = Number(order.advancePaid) || 0
+      const balance = Math.max(0, total - advance)
+      let paymentStatus = order.paymentStatus
+      if (!paymentStatus) {
+        if (total > 0 && advance >= total) paymentStatus = 'paid'
+        else if (advance > 0) paymentStatus = 'partial'
+        else paymentStatus = 'unpaid'
+      }
+
+      return {
+        ...order,
+        customerName: order.customerName || 'Customer',
+        customerPhone: order.customerPhone || '',
+        deliveryDate: order.deliveryDate || getLocalDateString(),
+        deliveryTime: order.deliveryTime || '14:00',
+        flavor: order.flavor || 'Custom Cake',
+        weight: order.weight || '1 kg',
+        cakeMessage: order.cakeMessage || '',
+        notes: order.notes || '',
+        totalPrice: total,
+        advancePaid: advance,
+        balanceDue: balance,
+        paymentStatus,
+        status: order.status || 'pending', // 'pending' | 'ready' | 'delivered' | 'cancelled'
+        referencePhoto: order.referencePhoto || null,
+        createdAt: order.createdAt || new Date().toISOString(),
+        updatedAt: order.updatedAt || new Date().toISOString(),
+      }
+    })
+    .sort((a, b) => {
+      const dateA = `${a.deliveryDate || ''}T${a.deliveryTime || '00:00'}`
+      const dateB = `${b.deliveryDate || ''}T${b.deliveryTime || '00:00'}`
+      return dateA.localeCompare(dateB)
+    })
+}
+
+async function getLocalOrders() {
+  try {
+    const database = await getLocalDB()
+    const orders = await database.getAll(ORDERS_STORE)
+    return normalizeOrders(orders)
+  } catch (error) {
+    console.error('Local DB orders error:', error)
+    return []
+  }
+}
+
+async function saveLocalOrder(order) {
+  try {
+    const database = await getLocalDB()
+    await database.put(ORDERS_STORE, order)
+  } catch (error) {
+    console.error('Local save order error:', error)
+  }
+}
+
+async function saveLocalOrders(orders) {
+  try {
+    const database = await getLocalDB()
+    const tx = database.transaction(ORDERS_STORE, 'readwrite')
+    await tx.store.clear()
+    await Promise.all(orders.map((order) => tx.store.put(order)))
+    await tx.done
+  } catch (error) {
+    console.error('Local sync orders error:', error)
+  }
+}
+
+async function deleteLocalOrder(id) {
+  try {
+    const database = await getLocalDB()
+    await database.delete(ORDERS_STORE, id)
+  } catch (error) {
+    console.error('Local delete order error:', error)
+  }
+}
+
+function getOrdersCollection() {
+  return collection(db, ORDERS_COLLECTION)
+}
+
+async function loadRemoteOrders() {
+  const snapshot = await getDocs(getOrdersCollection())
+  return normalizeOrders(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })))
+}
+
+async function saveRemoteOrder(order) {
+  await setDoc(doc(db, ORDERS_COLLECTION, order.id), order)
+}
+
+async function deleteRemoteOrder(id) {
+  await deleteDoc(doc(db, ORDERS_COLLECTION, id))
+}
+
+function triggerOrderReminderNotification(order) {
+  if (typeof window === 'undefined' || typeof Notification === 'undefined') return
+  if (Notification.permission !== 'granted') return
+
+  try {
+    const timeStr = order.deliveryTime ? ` at ${order.deliveryTime}` : ''
+    const body = `${order.flavor || 'Cake'} (${order.weight || '1 kg'}) is due today${timeStr}. Balance: ₹${order.balanceDue || 0}`
+    new Notification(`🎂 Cake Due Today: ${order.customerName}`, {
+      body,
+      icon: '/favicon.ico',
+      tag: `order-reminder-${order.id}`,
+    })
+  } catch (err) {
+    console.warn('Could not display notification', err)
+  }
+}
+
 function getRecipesCollection() {
   return collection(db, 'recipes')
 }
@@ -386,13 +514,18 @@ function isStandaloneMode() {
 
 export const useStore = create((set, get) => ({
   recipes: [],
+  orders: [],
   loading: true,
+  ordersLoading: true,
   authReady: false,
   currentPage: 'library',
   selectedRecipe: null,
   editingRecipe: null,
   searchQuery: '',
   activeTag: 'All',
+  orderSearchQuery: '',
+  orderFilterTab: 'all',
+  notificationPermission: typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default',
   user: null,
   userRole: 'viewer',
   isOwner: false,
@@ -410,8 +543,8 @@ export const useStore = create((set, get) => ({
     if (hasInitializedAuthListener) return
     hasInitializedAuthListener = true
 
-    const localRecipes = await getLocalRecipes()
-    set({ recipes: localRecipes, loading: true })
+    const [localRecipes, localOrders] = await Promise.all([getLocalRecipes(), getLocalOrders()])
+    set({ recipes: localRecipes, orders: localOrders, loading: true, ordersLoading: true })
 
     onAuthStateChanged(auth, async (user) => {
       const email = normalizeEmail(user?.email)
@@ -429,7 +562,9 @@ export const useStore = create((set, get) => ({
           roleEntries: [],
           authReady: true,
           loading: false,
+          ordersLoading: false,
           recipes: localRecipes,
+          orders: localOrders,
           currentPage: 'library',
           selectedRecipe: null,
           editingRecipe: null,
@@ -437,7 +572,7 @@ export const useStore = create((set, get) => ({
         return
       }
 
-      set({ user, loading: true, authReady: true, authError: '' })
+      set({ user, loading: true, ordersLoading: true, authReady: true, authError: '' })
 
       try {
         if (isOwner) {
@@ -448,20 +583,34 @@ export const useStore = create((set, get) => ({
         const permissions = getPermissions(userRole, email)
         const canManageRecipes = permissions.isAdmin
         const roleEntries = permissions.canManageRoles ? await loadRoleEntries() : []
-        const recipes = await migrateLocalRecipesIfNeeded(canManageRecipes)
-        await saveLocalRecipes(recipes)
+        const [recipes, remoteOrders] = await Promise.all([
+          migrateLocalRecipesIfNeeded(canManageRecipes),
+          loadRemoteOrders().catch((e) => {
+            console.warn('Could not load remote orders:', e)
+            return localOrders
+          }),
+        ])
+        await Promise.all([
+          saveLocalRecipes(recipes),
+          saveLocalOrders(remoteOrders),
+        ])
         set({
           recipes,
+          orders: remoteOrders,
           loading: false,
+          ordersLoading: false,
           ...permissions,
           roleEntries,
         })
+        get().checkOrderReminders()
       } catch (error) {
         console.error('Cloud load error:', error)
         const permissions = getPermissions(isOwner ? 'owner' : 'viewer', email)
         set({
           recipes: localRecipes,
+          orders: localOrders,
           loading: false,
+          ordersLoading: false,
           ...permissions,
           roleEntries: [],
           authError: error?.code ? `Firebase error: ${error.code}` : 'Could not load recipes from Firebase. Showing local recipes for now.',
@@ -594,6 +743,166 @@ export const useStore = create((set, get) => ({
       const matchTag = activeTag === 'All' || recipe.tag === activeTag
       return matchSearch && matchTag
     })
+  },
+
+  setOrderSearch: (orderSearchQuery) => set({ orderSearchQuery }),
+  setOrderFilterTab: (orderFilterTab) => set({ orderFilterTab }),
+
+  requestNotificationPermission: async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+    try {
+      const permission = await Notification.requestPermission()
+      set({ notificationPermission: permission })
+      if (permission === 'granted') {
+        get().checkOrderReminders(true)
+      }
+      return permission
+    } catch (err) {
+      console.warn('Error requesting notification permission:', err)
+      return 'denied'
+    }
+  },
+
+  checkOrderReminders: (force = false) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission !== 'granted') return
+
+    const { orders } = get()
+    const todayStr = getLocalDateString()
+    let notified = {}
+    try {
+      notified = JSON.parse(localStorage.getItem('kaurs_notified_orders') || '{}')
+    } catch {
+      notified = {}
+    }
+
+    const dueTodayOrders = orders.filter(
+      (order) => order.deliveryDate === todayStr && order.status !== 'delivered' && order.status !== 'cancelled'
+    )
+
+    dueTodayOrders.forEach((order) => {
+      if (force || notified[order.id] !== todayStr) {
+        triggerOrderReminderNotification(order)
+        notified[order.id] = todayStr
+      }
+    })
+
+    try {
+      localStorage.setItem('kaurs_notified_orders', JSON.stringify(notified))
+    } catch {
+      // ignore
+    }
+  },
+
+  addOrder: async (order) => {
+    const { isAdmin } = get()
+    if (!isAdmin) return null
+
+    const total = Number(order.totalPrice) || 0
+    const advance = Number(order.advancePaid) || 0
+    const balance = Math.max(0, total - advance)
+    const newOrder = {
+      ...order,
+      id: `order-${Date.now()}`,
+      totalPrice: total,
+      advancePaid: advance,
+      balanceDue: balance,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await saveRemoteOrder(newOrder)
+    await saveLocalOrder(newOrder)
+    set((state) => ({ orders: normalizeOrders([newOrder, ...state.orders]) }))
+    get().checkOrderReminders()
+    return newOrder
+  },
+
+  updateOrder: async (order) => {
+    const { isAdmin } = get()
+    if (!isAdmin) return
+
+    const total = Number(order.totalPrice) || 0
+    const advance = Number(order.advancePaid) || 0
+    const balance = Math.max(0, total - advance)
+    const updated = {
+      ...order,
+      totalPrice: total,
+      advancePaid: advance,
+      balanceDue: balance,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await saveRemoteOrder(updated)
+    await saveLocalOrder(updated)
+    set((state) => ({
+      orders: normalizeOrders(state.orders.map((o) => (o.id === updated.id ? updated : o))),
+    }))
+  },
+
+  deleteOrder: async (id) => {
+    const { isAdmin } = get()
+    if (!isAdmin) return
+
+    await deleteRemoteOrder(id)
+    await deleteLocalOrder(id)
+    set((state) => ({
+      orders: state.orders.filter((o) => o.id !== id),
+    }))
+  },
+
+  updateOrderStatus: async (id, status) => {
+    const { isAdmin, orders } = get()
+    if (!isAdmin) return
+    const target = orders.find((o) => o.id === id)
+    if (!target) return
+
+    const updated = {
+      ...target,
+      status,
+      updatedAt: new Date().toISOString(),
+    }
+
+    await saveRemoteOrder(updated)
+    await saveLocalOrder(updated)
+    set((state) => ({
+      orders: normalizeOrders(state.orders.map((o) => (o.id === id ? updated : o))),
+    }))
+  },
+
+  getFilteredOrders: () => {
+    const { orders, orderSearchQuery, orderFilterTab } = get()
+    const todayStr = getLocalDateString()
+
+    return orders.filter((order) => {
+      const query = (orderSearchQuery || '').toLowerCase().trim()
+      const matchSearch = !query
+        || order.customerName?.toLowerCase().includes(query)
+        || order.customerPhone?.includes(query)
+        || order.flavor?.toLowerCase().includes(query)
+        || order.cakeMessage?.toLowerCase().includes(query)
+
+      if (!matchSearch) return false
+
+      if (orderFilterTab === 'today') {
+        return order.deliveryDate === todayStr && order.status !== 'delivered' && order.status !== 'cancelled'
+      }
+      if (orderFilterTab === 'upcoming') {
+        return order.deliveryDate > todayStr && order.status !== 'delivered' && order.status !== 'cancelled'
+      }
+      if (orderFilterTab === 'completed') {
+        return order.status === 'delivered' || order.status === 'cancelled'
+      }
+      return true
+    })
+  },
+
+  getTodayPendingOrdersCount: () => {
+    const { orders } = get()
+    const todayStr = getLocalDateString()
+    return orders.filter(
+      (order) => order.deliveryDate === todayStr && order.status !== 'delivered' && order.status !== 'cancelled'
+    ).length
   },
 
   refreshRoles: async () => {

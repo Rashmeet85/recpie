@@ -65,6 +65,11 @@ service cloud.firestore {
       allow write: if isSignedIn() && canManageRecipes();
     }
 
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && canManageRecipes();
+    }
+
     match /roles/{userEmail} {
       allow read: if isSignedIn() && (canManageRoles() || request.auth.token.email == userEmail);
       allow create, update: if isSignedIn() && canWriteRole(userEmail);

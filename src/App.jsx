@@ -2,12 +2,13 @@ import { useEffect, useRef } from 'react'
 import { useStore } from './store/useStore'
 import BottomNav from './components/BottomNav'
 import LibraryPage from './pages/LibraryPage'
+import OrdersPage from './pages/OrdersPage'
 import AddRecipePage from './pages/AddRecipePage'
 import RecipeViewPage from './pages/RecipeViewPage'
 import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
-  const { currentPage, selectedRecipe, editingRecipe, init, initInstallPromptListener, authReady, user, signIn, authError, setPage } = useStore()
+  const { currentPage, selectedRecipe, editingRecipe, init, initInstallPromptListener, authReady, user, signIn, authError, setPage, checkOrderReminders } = useStore()
   const hasBootstrappedHistory = useRef(false)
   const isHandlingPopState = useRef(false)
 
@@ -18,6 +19,26 @@ export default function App() {
   useEffect(() => {
     initInstallPromptListener()
   }, [initInstallPromptListener])
+
+  // Periodic reminder check every 5 minutes and on window focus
+  useEffect(() => {
+    if (!authReady || !user) return
+
+    checkOrderReminders()
+    const interval = setInterval(() => {
+      checkOrderReminders()
+    }, 5 * 60 * 1000)
+
+    const handleFocus = () => {
+      checkOrderReminders()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [authReady, user, checkOrderReminders])
 
   useEffect(() => {
     if (!authReady || !user) {
@@ -108,6 +129,8 @@ export default function App() {
     }
 
     switch (currentPage) {
+      case 'orders':
+        return <div key="orders" className="animate-fade-up" style={style}><OrdersPage /></div>
       case 'add':
         return <div key="add" className="animate-fade-up" style={style}><AddRecipePage /></div>
       case 'view':
