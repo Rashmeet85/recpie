@@ -19,7 +19,7 @@ function TrashIcon() {
 }
 
 export default function RecipeViewPage() {
-  const { selectedRecipe, setPage, deleteRecipe, isAdmin, updateRecipe } = useStore()
+  const { selectedRecipe, setPage, deleteRecipe, isAdmin, canUseAi, updateRecipe } = useStore()
   const recipe = selectedRecipe
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [exportMessage, setExportMessage] = useState('')
@@ -69,6 +69,7 @@ export default function RecipeViewPage() {
   }
 
   const handleTriggerAiAction = async (actionId) => {
+    if (!canUseAi) return
     setAiMenuOpen(false)
     setAiAction(actionId)
     setAiLoading(true)
@@ -471,34 +472,38 @@ export default function RecipeViewPage() {
         </div>
       )}
 
-      <RecipeAiButton
-        onClick={() => setAiMenuOpen(!aiMenuOpen)}
-        isOpen={aiMenuOpen}
-        loading={aiLoading}
-      />
+      {canUseAi && (
+        <>
+          <RecipeAiButton
+            onClick={() => setAiMenuOpen(!aiMenuOpen)}
+            isOpen={aiMenuOpen}
+            loading={aiLoading}
+          />
 
-      <RecipeAiMenu
-        isOpen={aiMenuOpen}
-        onClose={() => setAiMenuOpen(false)}
-        onSelectAction={handleTriggerAiAction}
-      />
+          <RecipeAiMenu
+            isOpen={aiMenuOpen}
+            onClose={() => setAiMenuOpen(false)}
+            onSelectAction={handleTriggerAiAction}
+          />
 
-      <AiPreviewModal
-        isOpen={aiModalOpen}
-        onClose={() => {
-          setAiModalOpen(false)
-          setAiLoading(false)
-          setAiError('')
-        }}
-        action={aiAction}
-        loading={aiLoading}
-        error={aiError}
-        result={aiResult}
-        recipe={recipe}
-        onApply={handleApplyAiChanges}
-        onRetry={() => handleTriggerAiAction(aiAction)}
-        isAdmin={isAdmin}
-      />
+          <AiPreviewModal
+            isOpen={aiModalOpen}
+            onClose={() => {
+              setAiModalOpen(false)
+              setAiLoading(false)
+              setAiError('')
+            }}
+            action={aiAction}
+            loading={aiLoading}
+            error={aiError}
+            result={aiResult}
+            recipe={recipe}
+            onApply={handleApplyAiChanges}
+            onRetry={() => handleTriggerAiAction(aiAction)}
+            isAdmin={isAdmin}
+          />
+        </>
+      )}
     </div>
   )
 }

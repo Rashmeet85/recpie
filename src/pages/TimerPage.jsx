@@ -7,7 +7,6 @@ import {
   playDialRatchetClick,
   playMicrowaveKeyBeep,
 } from '../store/useTimerStore'
-import { playNotificationAlarmSound } from '../store/useStore'
 
 function formatTime(totalSeconds) {
   const mins = Math.floor(totalSeconds / 60)
@@ -237,30 +236,6 @@ export default function TimerPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* Test Alarm Sound preview */}
-            <button
-              type="button"
-              onClick={() => playNotificationAlarmSound()}
-              style={{
-                padding: '7px 11px',
-                borderRadius: 14,
-                border: '1px solid rgba(244, 114, 208, 0.35)',
-                background: 'rgba(255, 255, 255, 0.75)',
-                color: 'var(--rose)',
-                fontFamily: 'var(--font-body)',
-                fontSize: 11.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                boxShadow: '0 3px 10px rgba(142, 106, 232, 0.1)',
-              }}
-              title="Test loud alarm chime"
-            >
-              <span>🔊</span> Test Alarm
-            </button>
-
             <button
               type="button"
               onClick={() => setShowCustomModal(true)}

@@ -235,12 +235,12 @@ export default function SettingsPage() {
   }
 
   const roleSummary = isOwner
-    ? 'Owner access enabled. You can manage owners, user roles, recipes, imports, and deletes.'
+    ? 'Owner access enabled. You can manage owners, user roles, recipes, AI features, imports, and deletes.'
     : isCoOwner
-      ? 'Co-owner access enabled. You can manage admins, viewers, recipes, imports, and deletes.'
+      ? 'Co-owner access enabled. You can manage admins, viewers, recipes, AI features, imports, and deletes.'
       : isAdmin
-        ? 'Admin access enabled. You can create, edit, import, and delete recipes.'
-      : 'Viewer access enabled. You can browse and export recipes.'
+        ? 'Admin access enabled. You can create, edit, import, delete recipes, and use AI features.'
+      : 'Viewer access enabled. You can browse and export recipes. AI features are restricted.'
 
   return (
     <div style={{ padding: '56px 20px 24px' }}>
@@ -400,7 +400,7 @@ export default function SettingsPage() {
           <div style={{ padding: 18, background: 'rgba(255,255,255,0.52)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)' }}>
             <p style={{ margin: '0 0 12px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--warm-gray)', lineHeight: 1.6 }}>
               {canAssignCoOwner
-                ? 'Add or update a user by email. `coowner` can manage admins and viewers, `admin` can manage recipes, and `viewer` can only browse and export. Your owner role cannot be revoked here.'
+                ? 'Add or update a user by email. `coowner` can manage admins and viewers, `admin` can manage recipes and AI tools, and `viewer` can only browse and export (AI features restricted). Your owner role cannot be revoked here.'
                 : 'Add or update a user by email. You can assign `admin` and `viewer` roles. Co-owners cannot create more co-owners or owners.'}
             </p>
 

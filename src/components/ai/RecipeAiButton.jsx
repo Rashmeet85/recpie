@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { useStore } from '../../store/useStore'
 
 function SparkleIcon() {
   return (
@@ -9,7 +10,8 @@ function SparkleIcon() {
 }
 
 export default function RecipeAiButton({ onClick, isOpen, loading }) {
-  if (typeof document === 'undefined') return null
+  const { canUseAi } = useStore()
+  if (typeof document === 'undefined' || !canUseAi) return null
 
   return createPortal(
     <button

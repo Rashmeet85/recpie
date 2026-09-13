@@ -560,12 +560,16 @@ function getPermissions(role, email) {
   const normalizedRole = isOwner ? 'owner' : role || 'viewer'
   const isCoOwner = normalizedRole === 'coowner'
   const isAdmin = isOwner || isCoOwner || normalizedRole === 'admin'
+  const isViewer = !isAdmin
+  const canUseAi = !isViewer && isAdmin // Viewers are NOT allowed to access any AI feature
 
   return {
     userRole: normalizedRole,
     isOwner,
     isCoOwner,
     isAdmin,
+    isViewer,
+    canUseAi,
     canManageRoles: isOwner || isCoOwner,
     canAssignCoOwner: isOwner,
   }
@@ -659,6 +663,8 @@ export const useStore = create((set, get) => ({
   isOwner: false,
   isCoOwner: false,
   isAdmin: false,
+  isViewer: true,
+  canUseAi: false,
   canManageRoles: false,
   canAssignCoOwner: false,
   roleEntries: [],
@@ -685,6 +691,8 @@ export const useStore = create((set, get) => ({
           isOwner: false,
           isCoOwner: false,
           isAdmin: false,
+          isViewer: true,
+          canUseAi: false,
           canManageRoles: false,
           canAssignCoOwner: false,
           roleEntries: [],

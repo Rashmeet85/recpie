@@ -45,7 +45,7 @@ const EMPTY_FORM = {
 }
 
 export default function AddRecipePage() {
-  const { setPage, addRecipe, updateRecipe, editingRecipe, isAdmin } = useStore()
+  const { setPage, addRecipe, updateRecipe, editingRecipe, isAdmin, canUseAi } = useStore()
   const isEditing = !!editingRecipe
   const [form, setForm] = useState(isEditing ? {
     ...editingRecipe,
@@ -383,15 +383,19 @@ export default function AddRecipePage() {
         </div>
       </div>
 
-      <RecipeAiButton
-        onClick={() => setShowMagicImport(true)}
-      />
+      {canUseAi && (
+        <>
+          <RecipeAiButton
+            onClick={() => setShowMagicImport(true)}
+          />
 
-      <MagicImportModal
-        isOpen={showMagicImport}
-        onClose={() => setShowMagicImport(false)}
-        onImportRecipe={handleApplyImportedRecipe}
-      />
+          <MagicImportModal
+            isOpen={showMagicImport}
+            onClose={() => setShowMagicImport(false)}
+            onImportRecipe={handleApplyImportedRecipe}
+          />
+        </>
+      )}
     </div>
   )
 }
