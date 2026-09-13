@@ -60,9 +60,15 @@ export default function App() {
     const applyHistoryState = (state) => {
       const page = state?.page || 'library'
 
-      if (page === 'view' && selectedRecipe?.id === state?.recipeId) {
-        setPage('view', { recipe: selectedRecipe })
-        return
+      if (page === 'view') {
+        const targetRecipe = selectedRecipe?.id === state?.recipeId
+          ? selectedRecipe
+          : useStore.getState().recipes.find((r) => r.id === state?.recipeId)
+
+        if (targetRecipe) {
+          setPage('view', { recipe: targetRecipe })
+          return
+        }
       }
 
       if (page === 'add' && editingRecipe?.id === state?.editingRecipeId) {
@@ -119,11 +125,6 @@ export default function App() {
       && activeState.editingRecipeId === state.editingRecipeId
 
     if (!samePage) {
-      if (currentPage === 'library') {
-        window.history.go(-(window.history.length > 1 ? 1 : 0))
-        return
-      }
-
       window.history.pushState(state, '')
     }
   }, [authReady, user, currentPage, selectedRecipe, editingRecipe])
