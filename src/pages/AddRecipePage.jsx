@@ -2,8 +2,17 @@ import { useState, useEffect } from 'react'
 import { useStore, TAGS } from '../store/useStore'
 import { normalizeMethodSteps } from '../utils/methodParser'
 import MagicImportModal from '../components/ai/MagicImportModal'
+import RecipeAiButton from '../components/ai/RecipeAiButton'
 
 const EMOJIS = ['🍰', '🎂', '🧁', '🍞', '🥐', '🥖', '🥨', '🍩', '🍪', '🫓', '🍕', '🍔', '🥖', '🌾', '🍫', '🎃']
+
+export const CATEGORY_DEFAULT_EMOJIS = {
+  Bread: '🍞',
+  Cake: '🎂',
+  Cookies: '🍪',
+  Pastry: '🥐',
+  Other: '🍴',
+}
 
 function PlusIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -19,7 +28,7 @@ const emptyIngredient = () => ({ id: Date.now() + Math.random(), name: '', amoun
 const emptyStep = () => ({ id: Date.now() + Math.random(), text: '' })
 
 const EMPTY_FORM = {
-  emoji: '🍰',
+  emoji: '🍞',
   name: '',
   tag: 'Bread',
   meta: [
@@ -102,6 +111,18 @@ export default function AddRecipePage() {
   // Meta
   const updateMeta = (id, field, val) => update('meta', form.meta.map(m => m.id === id ? { ...m, [field]: val } : m))
 
+  const handleTagSelect = (tag) => {
+    setForm((prev) => {
+      const isStandardEmoji = Object.values(CATEGORY_DEFAULT_EMOJIS).includes(prev.emoji) || prev.emoji === '🍰'
+      const newEmoji = isStandardEmoji ? (CATEGORY_DEFAULT_EMOJIS[tag] || prev.emoji) : prev.emoji
+      return {
+        ...prev,
+        tag,
+        emoji: newEmoji,
+      }
+    })
+  }
+
   const validate = () => {
     const e = {}
     if (!form.name.trim()) e.name = 'Recipe name is required'
@@ -118,8 +139,8 @@ export default function AddRecipePage() {
       ...form,
       id: editingRecipe?.id,
       ingredients: form.ingredients.filter(i => i.name.trim()),
-      method: normalizeMethodSteps(form.method),
-      meta: form.meta.filter(m => m.label.trim()),
+      method: normalizeMethodSteps(form.method.map(s => s.text).filter(Boolean)),
+      meta: form.meta.filter(m => m.label.trim() && m.value.trim()),
     }
     try {
       if (isEditing) {
@@ -151,28 +172,6 @@ export default function AddRecipePage() {
         <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {isEditing ? 'Edit Recipe' : 'New Recipe'}
         </h2>
-        <button
-          onClick={() => setShowMagicImport(true)}
-          type="button"
-          style={{
-            padding: '8px 12px',
-            borderRadius: 12,
-            border: '1px solid rgba(244, 114, 208, 0.35)',
-            background: 'linear-gradient(135deg, rgba(255,218,241,0.7), rgba(219,225,255,0.7))',
-            color: 'var(--rose)',
-            fontFamily: 'var(--font-body)',
-            fontSize: 12.5,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            backdropFilter: 'blur(10px)',
-            flexShrink: 0,
-          }}
-        >
-          <span>🪄</span> Magic Import
-        </button>
         <button
           onClick={handleSave}
           disabled={saving}
@@ -238,16 +237,34 @@ export default function AddRecipePage() {
         <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.08s' }}>
           <div className="section-label">Category</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {TAGS.filter(t => t !== 'All').map(tag => (
-              <button key={tag} onClick={() => update('tag', tag)} style={{
-                padding: '8px 16px', borderRadius: 20, border: '1.5px solid',
-                cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
-                background: form.tag === tag ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)' : 'rgba(255,255,255,0.55)',
-                color: form.tag === tag ? 'white' : 'var(--warm-gray)',
-                borderColor: form.tag === tag ? 'transparent' : 'rgba(255,255,255,0.58)',
-                transition: 'all 0.2s',
-              }}>{tag}</button>
-            ))}
+            {TAGS.filter(t => t !== 'All').map(tag => {
+              const catEmoji = CATEGORY_DEFAULT_EMOJIS[tag] || '🍴'
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => handleTagSelect(tag)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 20,
+                    border: '1.5px solid',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    background: form.tag === tag ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)' : 'rgba(255,255,255,0.65)',
+                    color: form.tag === tag ? 'white' : 'var(--warm-gray)',
+                    borderColor: form.tag === tag ? 'transparent' : 'rgba(255,255,255,0.65)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{catEmoji}</span> {tag}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -365,6 +382,10 @@ export default function AddRecipePage() {
           </button>
         </div>
       </div>
+
+      <RecipeAiButton
+        onClick={() => setShowMagicImport(true)}
+      />
 
       <MagicImportModal
         isOpen={showMagicImport}

@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useStore, getLocalDateString } from '../../store/useStore'
 
 export default function OrderReminderBanner({ onFilterToday }) {
-  const { orders, notificationPermission, requestNotificationPermission } = useStore()
+  const { orders, notificationPermission, requestNotificationPermission, testNotificationAlarm } = useStore()
   const [dismissNotificationPrompt, setDismissNotificationPrompt] = useState(false)
   const [asking, setAsking] = useState(false)
+  const [testingAlarm, setTestingAlarm] = useState(false)
 
   const todayStr = getLocalDateString()
   const todayOrders = orders.filter(
@@ -16,6 +17,16 @@ export default function OrderReminderBanner({ onFilterToday }) {
     setAsking(true)
     await requestNotificationPermission()
     setAsking(false)
+  }
+
+  const handleTestAlarm = async (e) => {
+    e.stopPropagation()
+    setTestingAlarm(true)
+    if (notificationPermission === 'default') {
+      await requestNotificationPermission()
+    }
+    await testNotificationAlarm()
+    setTimeout(() => setTestingAlarm(false), 1200)
   }
 
   return (
@@ -48,8 +59,8 @@ export default function OrderReminderBanner({ onFilterToday }) {
         </div>
       )}
 
-      {/* Slim Inline Prompt for Browser Notifications */}
-      {notificationPermission === 'default' && !dismissNotificationPrompt && (
+      {/* Notification Banner / Test Alarm Strip */}
+      {notificationPermission === 'default' && !dismissNotificationPrompt ? (
         <div
           style={{
             padding: '7px 12px',
@@ -66,7 +77,7 @@ export default function OrderReminderBanner({ onFilterToday }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
             <span style={{ fontSize: 14 }}>🔔</span>
             <span style={{ color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Turn on delivery reminders
+              Turn on delivery alerts
             </span>
           </div>
 
@@ -86,7 +97,24 @@ export default function OrderReminderBanner({ onFilterToday }) {
                 cursor: 'pointer',
               }}
             >
-              {asking ? '…' : 'Enable'}
+              {asking ? '…' : 'Turn On'}
+            </button>
+            <button
+              type="button"
+              onClick={handleTestAlarm}
+              disabled={testingAlarm}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 8,
+                background: 'rgba(151, 145, 190, 0.15)',
+                color: 'var(--charcoal)',
+                border: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {testingAlarm ? 'Chiming…' : '🔊 Test'}
             </button>
             <button
               type="button"
@@ -105,7 +133,38 @@ export default function OrderReminderBanner({ onFilterToday }) {
             </button>
           </div>
         </div>
-      )}
+      ) : notificationPermission === 'granted' ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 6,
+            padding: '2px 4px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleTestAlarm}
+            disabled={testingAlarm}
+            style={{
+              padding: '3px 8px',
+              borderRadius: 8,
+              background: 'rgba(255, 255, 255, 0.65)',
+              border: '1px solid rgba(151, 145, 190, 0.2)',
+              color: 'var(--warm-gray)',
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <span>{testingAlarm ? '🔔' : '🔊'}</span> {testingAlarm ? 'Playing Chime…' : 'Test Alarm Sound'}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

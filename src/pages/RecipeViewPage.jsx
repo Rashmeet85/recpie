@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useStore, TAG_COLORS } from '../store/useStore'
-import { exportSinglePDF, exportSingleDocx, exportToPDF, exportToDocx } from '../utils/export'
 import { scaleRecipe } from '../utils/recipeScaling'
 import ExportToast from '../components/ExportToast'
 import RecipeAiButton from '../components/ai/RecipeAiButton'
@@ -19,16 +18,10 @@ function TrashIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
 }
 
-function DownloadIcon() {
-  return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-}
-
 export default function RecipeViewPage() {
-  const { selectedRecipe, setPage, deleteRecipe, recipes, isAdmin, updateRecipe } = useStore()
+  const { selectedRecipe, setPage, deleteRecipe, isAdmin, updateRecipe } = useStore()
   const recipe = selectedRecipe
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showExportMenu, setShowExportMenu] = useState(false)
-  const [exporting, setExporting] = useState(false)
   const [exportMessage, setExportMessage] = useState('')
   const [scaleFactorInput, setScaleFactorInput] = useState('1')
 
@@ -68,25 +61,6 @@ export default function RecipeViewPage() {
   const handleDelete = async () => {
     await deleteRecipe(recipe.id)
     setPage('library')
-  }
-
-  const handleExport = async (type) => {
-    setShowExportMenu(false)
-    setExporting(true)
-    setExportMessage('')
-
-    try {
-      if (type === 'pdf-single') await exportSinglePDF(scaledRecipe)
-      else if (type === 'docx-single') await exportSingleDocx(scaledRecipe)
-      else if (type === 'pdf-all') await exportToPDF(recipes)
-      else if (type === 'docx-all') await exportToDocx(recipes)
-      showExportMessage('Your export has been downloaded to this device.')
-    } catch (error) {
-      console.error(error)
-      showExportMessage('Something went wrong. Please try exporting again.')
-    } finally {
-      setExporting(false)
-    }
   }
 
   const handleTriggerAiAction = async (actionId) => {
@@ -147,77 +121,6 @@ export default function RecipeViewPage() {
           <BackIcon />
         </button>
         <div style={{ flex: 1 }} />
-
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setShowExportMenu(!showExportMenu)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              borderRadius: 10,
-              background: 'rgba(255,255,255,0.55)',
-              border: '1px solid rgba(255,255,255,0.58)',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-body)',
-              fontSize: 13,
-              color: 'var(--warm-gray)',
-              backdropFilter: 'blur(10px)',
-            }}
-          >
-            <DownloadIcon /> {exporting ? '...' : 'Export'}
-          </button>
-
-          {showExportMenu && (
-            <div
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: 44,
-                zIndex: 100,
-                background: 'rgba(255,255,255,0.8)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.58)',
-                borderRadius: 14,
-                boxShadow: 'var(--shadow-soft)',
-                overflow: 'hidden',
-                minWidth: 200,
-              }}
-            >
-              {[
-                { id: 'pdf-single', label: 'This recipe as PDF' },
-                { id: 'docx-single', label: 'This recipe as Word' },
-                { id: 'pdf-all', label: 'All recipes as PDF' },
-                { id: 'docx-all', label: 'All recipes as Word' },
-              ].map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => handleExport(option.id)}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '13px 18px',
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: 14,
-                    color: 'var(--charcoal)',
-                    borderBottom: '1px solid rgba(201,169,110,0.1)',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseOver={(event) => { event.currentTarget.style.background = 'rgba(180,149,255,0.12)' }}
-                  onMouseOut={(event) => { event.currentTarget.style.background = 'none' }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
         {isAdmin && (
           <>

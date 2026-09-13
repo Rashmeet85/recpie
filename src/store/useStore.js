@@ -389,20 +389,82 @@ async function deleteRemoteOrder(id) {
   await deleteDoc(doc(db, ORDERS_COLLECTION, id))
 }
 
-function triggerOrderReminderNotification(order) {
-  if (typeof window === 'undefined' || typeof Notification === 'undefined') return
-  if (Notification.permission !== 'granted') return
-
+export function playNotificationAlarmSound() {
+  if (typeof window === 'undefined') return
   try {
-    const timeStr = order.deliveryTime ? ` at ${order.deliveryTime}` : ''
-    const body = `${order.flavor || 'Cake'} (${order.weight || '1 kg'}) is due today${timeStr}. Balance: ₹${order.balanceDue || 0}`
-    new Notification(`🎂 Cake Due Today: ${order.customerName}`, {
-      body,
-      icon: '/favicon.ico',
-      tag: `order-reminder-${order.id}`,
+    const AudioCtx = window.AudioContext || window.webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    if (ctx.state === 'suspended') {
+      ctx.resume()
+    }
+
+    // Pleasant boutique kitchen bell chime (E5 -> G#5 -> B5)
+    const tones = [659.25, 830.61, 987.77]
+    tones.forEach((freq, idx) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      const startTime = ctx.currentTime + idx * 0.12
+      osc.frequency.setValueAtTime(freq, startTime)
+      gain.gain.setValueAtTime(0.28, startTime)
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(startTime)
+      osc.stop(startTime + 0.38)
     })
   } catch (err) {
-    console.warn('Could not display notification', err)
+    console.warn('Could not play notification sound:', err)
+  }
+}
+
+export async function triggerOrderReminderNotification(order) {
+  if (typeof window === 'undefined') return
+
+  // 1. Play audible alarm chime
+  playNotificationAlarmSound()
+
+  // 2. Vibrate mobile device if supported
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([200, 100, 200])
+    }
+  } catch {
+    // ignore
+  }
+
+  // 3. Display notification if permission is granted
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+
+  const timeStr = order.deliveryTime ? ` at ${order.deliveryTime}` : ''
+  const title = `🎂 Cake Due Today: ${order.customerName}`
+  const body = `${order.flavor || 'Cake'} (${order.weight || '1 kg'}) is due today${timeStr}. Balance: ₹${order.balanceDue || 0}`
+  const options = {
+    body,
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: `order-reminder-${order.id}`,
+  }
+
+  // Use ServiceWorker on mobile (Android/iOS PWA) if available
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready.catch(() => null)
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, options)
+        return
+      }
+    }
+  } catch (swErr) {
+    console.warn('Service worker showNotification failed:', swErr)
+  }
+
+  // Desktop notification fallback
+  try {
+    new Notification(title, options)
+  } catch (err) {
+    console.warn('Desktop notification constructor failed:', err)
   }
 }
 
@@ -761,6 +823,18 @@ export const useStore = create((set, get) => ({
       console.warn('Error requesting notification permission:', err)
       return 'denied'
     }
+  },
+
+  testNotificationAlarm: async () => {
+    playNotificationAlarmSound()
+    await triggerOrderReminderNotification({
+      id: 'test-alarm',
+      customerName: 'Test Order (Priya)',
+      flavor: 'Belgian Truffle Cake',
+      weight: '1 kg',
+      deliveryTime: '5:00 PM',
+      balanceDue: 500,
+    })
   },
 
   checkOrderReminders: (force = false) => {

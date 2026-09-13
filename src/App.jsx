@@ -6,9 +6,12 @@ import OrdersPage from './pages/OrdersPage'
 import AddRecipePage from './pages/AddRecipePage'
 import RecipeViewPage from './pages/RecipeViewPage'
 import SettingsPage from './pages/SettingsPage'
+import TimerPage from './pages/TimerPage'
+import { useTimerStore } from './store/useTimerStore'
 
 export default function App() {
   const { currentPage, selectedRecipe, editingRecipe, init, initInstallPromptListener, authReady, user, signIn, authError, setPage, checkOrderReminders } = useStore()
+  const timerTick = useTimerStore((s) => s.tick)
   const hasBootstrappedHistory = useRef(false)
   const isHandlingPopState = useRef(false)
 
@@ -19,6 +22,14 @@ export default function App() {
   useEffect(() => {
     initInstallPromptListener()
   }, [initInstallPromptListener])
+
+  // Periodic timer tick (runs every second to update active countdowns & alarms)
+  useEffect(() => {
+    const timerInterval = setInterval(() => {
+      timerTick()
+    }, 1000)
+    return () => clearInterval(timerInterval)
+  }, [timerTick])
 
   // Periodic reminder check every 5 minutes and on window focus
   useEffect(() => {
@@ -135,6 +146,8 @@ export default function App() {
         return <div key="add" className="animate-fade-up" style={style}><AddRecipePage /></div>
       case 'view':
         return <div key="view" className="animate-fade-up" style={style}><RecipeViewPage /></div>
+      case 'timer':
+        return <div key="timer" className="animate-fade-up" style={style}><TimerPage /></div>
       case 'settings':
         return <div key="settings" className="animate-fade-up" style={style}><SettingsPage /></div>
       default:

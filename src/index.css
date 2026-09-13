@@ -64,6 +64,16 @@ body {
 .input-field::placeholder { color: var(--light-warm); }
 textarea.input-field { resize: none; }
 
+.section-label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--warm-gray);
+  margin-bottom: 9px;
+  display: block;
+}
+
 @keyframes fadeUp {
   from { opacity:0; transform:translateY(16px); }
   to { opacity:1; transform:translateY(0); }

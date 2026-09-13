@@ -1,9 +1,11 @@
 import { useStore } from '../store/useStore'
+import { useTimerStore } from '../store/useTimerStore'
 
 const NAV_ITEMS = [
   { id: 'library', icon: BookIcon, label: 'Recipes' },
   { id: 'orders', icon: OrdersIcon, label: 'Orders' },
   { id: 'add', icon: PlusIcon, label: 'Add', isFab: true },
+  { id: 'timer', icon: TimerIcon, label: 'Timer' },
   { id: 'settings', icon: SettingsIcon, label: 'Settings' },
 ]
 
@@ -29,6 +31,17 @@ function OrdersIcon({ active }) {
     </svg>
   )
 }
+function TimerIcon({ active }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2 2" />
+      <path d="M5 3L2 6" />
+      <path d="M22 6l-3-3" />
+      <path d="M12 2v3" />
+    </svg>
+  )
+}
 function PlusIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -47,6 +60,7 @@ function SettingsIcon({ active }) {
 export default function BottomNav() {
   const { currentPage, setPage, isAdmin, getTodayPendingOrdersCount } = useStore()
   const todayOrdersCount = getTodayPendingOrdersCount ? getTodayPendingOrdersCount() : 0
+  const activeTimersCount = useTimerStore((s) => s.getActiveRunningCount ? s.getActiveRunningCount() : 0)
   const navItems = isAdmin ? NAV_ITEMS : NAV_ITEMS.filter(item => !item.isFab)
 
   return (
@@ -127,6 +141,29 @@ export default function BottomNav() {
                   }}
                 >
                   {todayOrdersCount}
+                </span>
+              )}
+              {item.id === 'timer' && activeTimersCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -7,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                    color: 'white',
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 3px',
+                    boxShadow: '0 2px 6px rgba(142, 106, 232, 0.4)',
+                  }}
+                >
+                  {activeTimersCount}
                 </span>
               )}
             </span>
