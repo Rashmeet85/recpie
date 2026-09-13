@@ -95,6 +95,31 @@ async function triggerTimerSystemNotification(timer) {
 
 let alarmLoopInterval = null
 
+export function playMicrowaveKeyBeep() {
+  if (typeof window === 'undefined') return
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext
+    if (!AudioContext) return
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(1760, ctx.currentTime) // 1760Hz crisp key beep
+
+    gain.gain.setValueAtTime(0.06, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.045)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start()
+    osc.stop(ctx.currentTime + 0.045)
+  } catch {
+    // ignore
+  }
+}
+
 function ensureAlarmSoundLoop(hasRinging) {
   if (hasRinging) {
     if (!alarmLoopInterval) {
