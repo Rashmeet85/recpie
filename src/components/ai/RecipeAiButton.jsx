@@ -1,5 +1,9 @@
+import { createPortal } from 'react-dom'
+
 export default function RecipeAiButton({ onClick, isOpen, loading }) {
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <button
       onClick={onClick}
       disabled={loading}
@@ -9,11 +13,11 @@ export default function RecipeAiButton({ onClick, isOpen, loading }) {
         position: 'fixed',
         bottom: 'calc(64px + env(safe-area-inset-bottom) + 16px)',
         right: 20,
-        zIndex: 90,
+        zIndex: 99,
         height: 52,
         padding: '0 20px 0 16px',
         borderRadius: 26,
-        border: '1px solid rgba(255, 255, 255, 0.65)',
+        border: '1px solid rgba(255, 255, 255, 0.75)',
         background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
         color: 'white',
         cursor: 'pointer',
@@ -44,7 +48,8 @@ export default function RecipeAiButton({ onClick, isOpen, loading }) {
         {loading ? '🪄' : '✨'}
       </span>
       <span>{loading ? 'Working…' : 'AI Assistant'}</span>
-    </button>
+    </button>,
+    document.body
   )
 }
 
