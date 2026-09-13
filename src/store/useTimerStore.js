@@ -120,6 +120,32 @@ export function playMicrowaveKeyBeep() {
   }
 }
 
+export function playDialRatchetClick() {
+  if (typeof window === 'undefined') return
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext
+    if (!AudioContext) return
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(2400, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.015)
+
+    gain.gain.setValueAtTime(0.045, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.015)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start()
+    osc.stop(ctx.currentTime + 0.015)
+  } catch {
+    // ignore
+  }
+}
+
 function ensureAlarmSoundLoop(hasRinging) {
   if (hasRinging) {
     if (!alarmLoopInterval) {

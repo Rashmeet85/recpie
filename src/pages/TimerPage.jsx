@@ -1,6 +1,6 @@
-// Kaur's Cakery - Microwave & Digital Dual Bakery Timer Console
-import { useState, useEffect } from 'react'
-import { useTimerStore, BAKERY_PRESETS, playMicrowaveKeyBeep } from '../store/useTimerStore'
+// Kaur's Cakery - Brushed Stainless Steel Circular Rotary Oven & Microwave Timer
+import { useState, useEffect, useRef } from 'react'
+import { useTimerStore, BAKERY_PRESETS, playDialRatchetClick, playMicrowaveKeyBeep } from '../store/useTimerStore'
 
 function formatTime(totalSeconds) {
   const mins = Math.floor(totalSeconds / 60)
@@ -23,184 +23,41 @@ export default function TimerPage() {
     stopAllAlarms,
   } = useTimerStore()
 
-  // Microwave Keypad / Staged Time State
-  const [digits, setDigits] = useState('')
-  const [presetLabel, setPresetLabel] = useState('')
-  const [presetEmoji, setPresetEmoji] = useState('⏱️')
-  const [activeMicrowaveTimerId, setActiveMicrowaveTimerId] = useState(null)
-  const [colonVisible, setColonVisible] = useState(true)
+  // Staged Rotary Dial State (in minutes, 0 to 60)
+  const [stagedMinutes, setStagedMinutes] = useState(25)
+  const [stagedLabel, setStagedLabel] = useState('Cake Sponge')
+  const [stagedEmoji, setStagedEmoji] = useState('🎂')
+  const [activeDialTimerId, setActiveDialTimerId] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [showCustomModal, setShowCustomModal] = useState(false)
   const [customLabel, setCustomLabel] = useState('')
   const [customMinutes, setCustomMinutes] = useState('20')
 
-  // Find currently linked microwave timer, or default to the most active/ringing timer
-  const activeTimer = timers.find((t) => t.id === activeMicrowaveTimerId) || null
+  const dialRef = useRef(null)
+  const lastClickAngleRef = useRef(0)
+
+  // Find currently linked dial timer, or default to the most active/ringing timer
+  const activeTimer = timers.find((t) => t.id === activeDialTimerId) || null
   const ringingTimers = timers.filter((t) => t.status === 'ringing')
 
-  // Synchronize: if no active timer is selected, but one is running, auto-link to it
+  // Synchronize: if no timer is selected, but one is running/ringing, auto-link to it
   useEffect(() => {
-    if (!activeMicrowaveTimerId && timers.length > 0) {
+    if (!activeDialTimerId && timers.length > 0) {
       const runningOrRinging = timers.find((t) => t.status === 'running' || t.status === 'ringing')
       if (runningOrRinging) {
-        setActiveMicrowaveTimerId(runningOrRinging.id)
+        setActiveDialTimerId(runningOrRinging.id)
       }
     }
-  }, [activeMicrowaveTimerId, timers])
+  }, [activeDialTimerId, timers])
 
-  // Blinking colon animation for the digital display when timer is running
-  useEffect(() => {
-    if (activeTimer && activeTimer.status === 'running') {
-      const interval = setInterval(() => {
-        setColonVisible((v) => !v)
-      }, 500)
-      return () => clearInterval(interval)
-    }
-    setColonVisible(true)
-  }, [activeTimer])
-
-  // Keypad Handlers
-  const handleDigitPress = (digit) => {
-    playMicrowaveKeyBeep()
-    if (activeTimer && (activeTimer.status === 'running' || activeTimer.status === 'ringing')) {
-      // If a timer is already actively running, ignore numpad or detach to stage a new one
-      return
-    }
-    if (digits.length < 4) {
-      // Don't start with multiple zeroes
-      if (digits === '' && digit === '0') return
-      setDigits((prev) => prev + digit)
-    }
-  }
-
-  const handleClearPress = () => {
-    playMicrowaveKeyBeep()
-    if (activeTimer) {
-      if (activeTimer.status === 'ringing') {
-        stopAlarm(activeTimer.id)
-      } else {
-        pauseTimer(activeTimer.id)
-      }
-      setActiveMicrowaveTimerId(null)
-    }
-    setDigits('')
-    setPresetLabel('')
-    setPresetEmoji('⏱️')
-  }
-
-  const handleAdd30s = () => {
-    playMicrowaveKeyBeep()
-    if (activeTimer) {
-      addTimeToTimer(activeTimer.id, 30)
-      return
-    }
-
-    // If idle with no timer active:
-    if (digits === '') {
-      // Instant start 30 seconds (standard microwave action!)
-      const t = addTimer({
-        label: presetLabel || 'Quick Microwave',
-        minutes: 0,
-        seconds: 30,
-        emoji: presetEmoji || '⚡',
-      })
-      setActiveMicrowaveTimerId(t.id)
-    } else {
-      // Add 30 seconds to the staged digits
-      let rawSec = 0
-      if (digits.length <= 2) {
-        rawSec = parseInt(digits, 10) || 0
-      } else {
-        const mins = parseInt(digits.slice(0, -2), 10) || 0
-        const secs = parseInt(digits.slice(-2), 10) || 0
-        rawSec = mins * 60 + secs
-      }
-      rawSec += 30
-      const newM = Math.floor(rawSec / 60)
-      const newS = rawSec % 60
-      setDigits(String(newM).padStart(2, '0') + String(newS).padStart(2, '0'))
-    }
-  }
-
-  const handleStartPress = () => {
-    playMicrowaveKeyBeep()
-
-    // 1. If currently linked to an active timer
-    if (activeTimer) {
-      if (activeTimer.status === 'paused') {
-        resumeTimer(activeTimer.id)
-      } else if (activeTimer.status === 'running') {
-        // Hitting start while running adds +30s (microwave standard)
-        addTimeToTimer(activeTimer.id, 30)
-      } else if (activeTimer.status === 'ringing') {
-        stopAlarm(activeTimer.id)
-        setActiveMicrowaveTimerId(null)
-      }
-      return
-    }
-
-    // 2. If idle: start new timer from digits
-    let totalSecs = 0
-    if (digits === '') {
-      // No digits typed: default to 30s quick microwave
-      totalSecs = 30
-    } else if (digits.length <= 2) {
-      totalSecs = parseInt(digits, 10) || 30
-    } else {
-      const mins = parseInt(digits.slice(0, -2), 10) || 0
-      const secs = parseInt(digits.slice(-2), 10) || 0
-      totalSecs = mins * 60 + secs
-    }
-
-    if (totalSecs <= 0) totalSecs = 30
-
-    const t = addTimer({
-      label: presetLabel || 'Microwave Timer',
-      minutes: Math.floor(totalSecs / 60),
-      seconds: totalSecs % 60,
-      emoji: presetEmoji || '⏱️',
-    })
-
-    setActiveMicrowaveTimerId(t.id)
-    setDigits('')
-    setPresetLabel('')
-    setPresetEmoji('⏱️')
-  }
-
-  const handlePauseOrStop = () => {
-    playMicrowaveKeyBeep()
-    if (activeTimer) {
-      if (activeTimer.status === 'ringing') {
-        stopAlarm(activeTimer.id)
-        setActiveMicrowaveTimerId(null)
-      } else if (activeTimer.status === 'running') {
-        pauseTimer(activeTimer.id)
-      } else if (activeTimer.status === 'paused') {
-        resetTimer(activeTimer.id)
-        setActiveMicrowaveTimerId(null)
-      }
-    } else {
-      setDigits('')
-      setPresetLabel('')
-    }
-  }
-
-  const handlePresetSelect = (preset) => {
-    playMicrowaveKeyBeep()
-    setPresetLabel(preset.label)
-    setPresetEmoji(preset.emoji)
-    // Convert preset minutes to 4-digit microwave string, e.g. 25m -> "2500"
-    const mStr = String(preset.minutes).padStart(2, '0')
-    setDigits(`${mStr}00`)
-    setActiveMicrowaveTimerId(null)
-  }
-
-  // Calculate formatted digital display output
-  let displayMinutes = '00'
+  // Calculate current angle (0° = top/0m, 360° = 60m)
+  let currentAngle = 0
+  let displayMinutes = '25'
   let displaySeconds = '00'
-  let progressPercent = 0
   let isRunning = false
   let isPaused = false
   let isRinging = false
+  let progressFraction = 0 // 0 to 1
 
   if (activeTimer) {
     const formatted = formatTime(activeTimer.remainingSeconds)
@@ -210,29 +67,159 @@ export default function TimerPage() {
     isRunning = activeTimer.status === 'running'
     isPaused = activeTimer.status === 'paused'
     isRinging = activeTimer.status === 'ringing'
-    progressPercent = Math.min(
-      100,
-      Math.max(0, ((activeTimer.totalDurationSeconds - activeTimer.remainingSeconds) / activeTimer.totalDurationSeconds) * 100)
-    )
-  } else if (digits) {
-    if (digits.length <= 2) {
-      displayMinutes = '00'
-      displaySeconds = digits.padStart(2, '0')
-    } else if (digits.length === 3) {
-      displayMinutes = `0${digits[0]}`
-      displaySeconds = digits.slice(1)
+
+    // Total fraction remaining (up to 60 minutes)
+    const remainingMins = activeTimer.remainingSeconds / 60
+    currentAngle = (Math.min(60, remainingMins) / 60) * 360
+    progressFraction = Math.min(1, Math.max(0, activeTimer.remainingSeconds / activeTimer.totalDurationSeconds))
+  } else {
+    currentAngle = (stagedMinutes / 60) * 360
+    const m = Math.floor(stagedMinutes)
+    const s = Math.round((stagedMinutes - m) * 60)
+    displayMinutes = String(m).padStart(2, '0')
+    displaySeconds = String(s).padStart(2, '0')
+    progressFraction = stagedMinutes / 60
+  }
+
+  // Handle Touch / Mouse Rotary Drag
+  const updateAngleFromPointer = (clientX, clientY) => {
+    if (!dialRef.current) return
+    const rect = dialRef.current.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+
+    const dx = clientX - centerX
+    const dy = clientY - centerY
+
+    // Standard theta (0 at 3 o'clock)
+    let theta = Math.atan2(dy, dx) * (180 / Math.PI)
+    // Shift so 0° is 12 o'clock (top)
+    let clockAngle = (theta + 90 + 360) % 360
+
+    // Sound effect every 6 degrees (1 minute)
+    if (Math.abs(clockAngle - lastClickAngleRef.current) >= 6) {
+      playDialRatchetClick()
+      lastClickAngleRef.current = clockAngle
+    }
+
+    // Convert clock angle to minutes (0 to 60)
+    // Snap to nearest 1 minute
+    let calculatedMinutes = Math.round((clockAngle / 360) * 60)
+    if (calculatedMinutes <= 0 && clockAngle > 300) {
+      calculatedMinutes = 60
+    } else if (calculatedMinutes <= 0) {
+      calculatedMinutes = 1
+    }
+
+    if (activeTimer) {
+      // If a timer is already running or paused, dragging updates its remaining time
+      const newSeconds = calculatedMinutes * 60
+      addTimeToTimer(activeTimer.id, newSeconds - activeTimer.remainingSeconds)
     } else {
-      displayMinutes = digits.slice(0, 2)
-      displaySeconds = digits.slice(2, 4)
+      setStagedMinutes(calculatedMinutes)
     }
   }
 
+  const handlePointerDown = (e) => {
+    setIsDragging(true)
+    updateAngleFromPointer(e.clientX || e.touches?.[0]?.clientX, e.clientY || e.touches?.[0]?.clientY)
+  }
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return
+    updateAngleFromPointer(e.clientX || e.touches?.[0]?.clientX, e.clientY || e.touches?.[0]?.clientY)
+  }
+
+  const handlePointerUp = () => {
+    setIsDragging(false)
+  }
+
+  // Quick Adjustment Steppers
+  const handleNudge = (deltaMinutes) => {
+    playDialRatchetClick()
+    if (activeTimer) {
+      addTimeToTimer(activeTimer.id, deltaMinutes * 60)
+    } else {
+      setStagedMinutes((prev) => Math.max(1, Math.min(60, prev + deltaMinutes)))
+    }
+  }
+
+  const handleAdd30s = () => {
+    playDialRatchetClick()
+    if (activeTimer) {
+      addTimeToTimer(activeTimer.id, 30)
+    } else {
+      // Add 0.5 minutes
+      setStagedMinutes((prev) => Math.min(60, prev + 0.5))
+    }
+  }
+
+  // 1-Tap Preset Launch
+  const handlePresetSelect = (preset) => {
+    playDialRatchetClick()
+    setStagedMinutes(preset.minutes)
+    setStagedLabel(preset.label)
+    setStagedEmoji(preset.emoji)
+    setActiveDialTimerId(null)
+  }
+
+  // Primary Start / Pause Control
+  const handleStartOrPause = () => {
+    playMicrowaveKeyBeep()
+    if (activeTimer) {
+      if (activeTimer.status === 'paused') {
+        resumeTimer(activeTimer.id)
+      } else if (activeTimer.status === 'running') {
+        pauseTimer(activeTimer.id)
+      } else if (activeTimer.status === 'ringing') {
+        stopAlarm(activeTimer.id)
+        setActiveDialTimerId(null)
+      }
+      return
+    }
+
+    // Start new timer from staged minutes
+    const totalSecs = Math.max(30, Math.round(stagedMinutes * 60))
+    const t = addTimer({
+      label: stagedLabel || 'Oven Timer',
+      minutes: Math.floor(totalSecs / 60),
+      seconds: totalSecs % 60,
+      emoji: stagedEmoji || '⏱️',
+    })
+    setActiveDialTimerId(t.id)
+  }
+
+  const handleReset = () => {
+    playMicrowaveKeyBeep()
+    if (activeTimer) {
+      if (activeTimer.status === 'ringing') {
+        stopAlarm(activeTimer.id)
+      } else {
+        resetTimer(activeTimer.id)
+      }
+      setActiveDialTimerId(null)
+    }
+    setStagedMinutes(20)
+    setStagedLabel('Custom Bake')
+    setStagedEmoji('⏱️')
+  }
+
+  // SVG Gauge calculations
+  const radius = 98
+  const circumference = 2 * Math.PI * radius
+  // Dash offset representing time remaining along the circle
+  const strokeDashoffset = circumference - (Math.min(360, currentAngle) / 360) * circumference
+
   return (
-    <div style={{ padding: '0 0 48px', minHeight: '100dvh' }}>
+    <div
+      style={{ padding: '0 0 54px', minHeight: '100dvh', userSelect: 'none' }}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
       {/* Top Header */}
       <div
         style={{
-          padding: '46px 18px 12px',
+          padding: '46px 18px 10px',
           background: 'linear-gradient(180deg, rgba(250,248,255,0.95) 75%, rgba(250,248,255,0) 100%)',
         }}
       >
@@ -242,7 +229,7 @@ export default function TimerPage() {
               Kaur&apos;s Cakery Kitchen
             </p>
             <h1 style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 29, fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-              Microwave & Oven Timer
+              Oven & Bakery Timer
             </h1>
           </div>
 
@@ -321,420 +308,492 @@ export default function TimerPage() {
         </div>
       )}
 
-      {/* MAIN MICROWAVE APPLIANCE UNIT */}
-      <div style={{ padding: '0 16px', marginBottom: 24 }}>
-        <div
-          style={{
-            background: 'linear-gradient(165deg, #1b172a 0%, #110e1e 100%)',
-            borderRadius: 28,
-            padding: '18px 16px 20px',
-            border: '2px solid rgba(255, 255, 255, 0.12)',
-            boxShadow: '0 20px 48px rgba(17, 14, 30, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Subtle Metallic Highlight Rim */}
-          <div
+      {/* HERO ROTARY OVEN DIAL SECTION */}
+      <div style={{ padding: '4px 16px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {/* Dial Container with Side Stepper Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', maxWidth: 380 }}>
+          {/* Left Step (-1m) */}
+          <button
+            type="button"
+            onClick={() => handleNudge(-1)}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 2,
-              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              border: '1.5px solid rgba(255,255,255,0.9)',
+              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
+              boxShadow: '0 6px 16px rgba(100, 90, 130, 0.12), inset 0 1px 0 #ffffff',
+              color: 'var(--charcoal)',
+              fontSize: 18,
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
             }}
-          />
+            aria-label="Minus 1 minute"
+          >
+            –
+          </button>
 
-          {/* 1. DIGITAL VFD / OLED DISPLAY SCREEN */}
+          {/* MAIN CIRCULAR STEEL KNOB */}
           <div
+            ref={dialRef}
+            onPointerDown={handlePointerDown}
             style={{
-              background: 'radial-gradient(ellipse at 50% 30%, #0d121c 0%, #060910 100%)',
-              borderRadius: 20,
-              padding: '14px 16px 12px',
-              border: '1.5px solid #232a3d',
-              boxShadow: 'inset 0 4px 16px rgba(0, 0, 0, 0.85), 0 2px 8px rgba(0,0,0,0.3)',
               position: 'relative',
-              overflow: 'hidden',
-              marginBottom: 14,
+              width: 270,
+              height: 270,
+              borderRadius: '50%',
+              background: `
+                radial-gradient(circle at 35% 30%, #ffffff 0%, transparent 45%),
+                conic-gradient(from 45deg, #f2f4f8 0deg, #d3d9e2 45deg, #ffffff 90deg, #b8c1ce 135deg, #f6f8fb 180deg, #d3d9e2 225deg, #ffffff 270deg, #b0bac8 315deg, #f2f4f8 360deg)
+              `,
+              boxShadow: `
+                0 22px 50px rgba(78, 62, 125, 0.22),
+                0 8px 18px rgba(0, 0, 0, 0.12),
+                inset 0 3px 6px rgba(255, 255, 255, 0.95),
+                inset 0 -4px 8px rgba(0, 0, 0, 0.22)
+              `,
+              border: '3.5px solid #ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: isDragging ? 'grabbing' : 'grab',
+              touchAction: 'none',
             }}
           >
-            {/* Screen Header Row: Indicators */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: isRunning ? '#00ffd5' : isRinging ? '#ff4b4b' : isPaused ? '#ffb84d' : '#5b657e',
-                    boxShadow: isRunning ? '0 0 8px #00ffd5' : isRinging ? '0 0 8px #ff4b4b' : 'none',
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: '"SF Mono", "Cascadia Code", monospace',
-                    fontSize: 10,
-                    letterSpacing: '0.12em',
-                    color: '#7687a8',
-                    textTransform: 'uppercase',
-                    fontWeight: 700,
-                  }}
-                >
-                  MICROWAVE STATION
-                </span>
-              </div>
+            {/* Knurled Outer Metallic Grip Ring */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 6,
+                borderRadius: '50%',
+                border: '1px dashed rgba(160, 170, 185, 0.6)',
+                pointerEvents: 'none',
+              }}
+            />
 
-              {/* Status Badge */}
-              <div
+            {/* SVG Graduation Dial Marks (0, 5, 10, 15... 60) */}
+            <svg
+              width="270"
+              height="270"
+              viewBox="0 0 270 270"
+              style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+            >
+              {/* 60 Minute Tick Marks */}
+              {[...Array(60)].map((_, i) => {
+                const tickAngle = (i / 60) * 360
+                const isMajor = i % 5 === 0
+                const tickLength = isMajor ? 9 : 4.5
+                const tickWidth = isMajor ? 2.5 : 1
+                const tickColor = isMajor ? '#687282' : '#a8b2c0'
+
+                return (
+                  <line
+                    key={i}
+                    x1="135"
+                    y1={13}
+                    x2="135"
+                    y2={13 + tickLength}
+                    stroke={tickColor}
+                    strokeWidth={tickWidth}
+                    strokeLinecap="round"
+                    transform={`rotate(${tickAngle} 135 135)`}
+                  />
+                )
+              })}
+
+              {/* Number Labels: 0, 15, 30, 45 */}
+              <text x="135" y="36" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+                0
+              </text>
+              <text x="238" y="139" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+                15
+              </text>
+              <text x="135" y="244" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+                30
+              </text>
+              <text x="32" y="139" textAnchor="middle" fill="#586374" fontSize="11" fontWeight="800" fontFamily="var(--font-body)">
+                45
+              </text>
+
+              {/* Circular Glowing Rose/Lavender Progress Track */}
+              <circle
+                cx="135"
+                cy="135"
+                r={radius}
+                fill="none"
+                stroke="rgba(157, 124, 255, 0.12)"
+                strokeWidth="6"
+              />
+              <circle
+                cx="135"
+                cy="135"
+                r={radius}
+                fill="none"
+                stroke="url(#progressGradient)"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                transform="rotate(-90 135 135)"
                 style={{
-                  fontFamily: '"SF Mono", monospace',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  padding: '2px 8px',
-                  borderRadius: 6,
-                  background: isRinging
-                    ? 'rgba(255, 75, 75, 0.25)'
-                    : isRunning
-                      ? 'rgba(0, 255, 213, 0.15)'
-                      : isPaused
-                        ? 'rgba(255, 184, 77, 0.18)'
-                        : 'rgba(255, 255, 255, 0.05)',
-                  color: isRinging ? '#ff6666' : isRunning ? '#00ffd5' : isPaused ? '#ffb84d' : '#8898b8',
-                  border: `1px solid ${isRinging ? '#ff4b4b' : isRunning ? '#00ffd5' : isPaused ? '#ffb84d' : 'rgba(255,255,255,0.08)'}`,
+                  filter: 'drop-shadow(0 0 6px rgba(244, 114, 208, 0.6))',
+                  transition: isDragging ? 'none' : 'stroke-dashoffset 0.3s ease',
                 }}
-              >
-                {isRinging ? '🔔 BEEP DONE' : isRunning ? '♨️ HEATING' : isPaused ? '⏸ PAUSED' : '● READY'}
-              </div>
-            </div>
+              />
 
-            {/* Glowing Big Digital Numbers Container */}
-            <div style={{ position: 'relative', textAlign: 'center', margin: '6px 0 8px' }}>
-              {/* Ghosted Background Segments (authentic microwave LCD effect) */}
-              <div
-                aria-hidden="true"
-                style={{
-                  fontFamily: '"SF Mono", Monaco, "Courier New", monospace',
-                  fontSize: 54,
-                  fontWeight: 800,
-                  letterSpacing: '0.08em',
-                  color: 'rgba(0, 255, 213, 0.06)',
-                  userSelect: 'none',
-                  lineHeight: 1,
-                }}
-              >
-                88:88
-              </div>
+              <defs>
+                <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ff8fdc" />
+                  <stop offset="100%" stopColor="#9d7cff" />
+                </linearGradient>
+              </defs>
+            </svg>
 
-              {/* Active Glowing Digital Numerals */}
+            {/* ROTATING METALLIC NEEDLE & ROSE-GOLD POINTER */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                transform: `rotate(${currentAngle}deg)`,
+                pointerEvents: 'none',
+                transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2,0,0,1)',
+              }}
+            >
+              {/* Pointer Tip Arrow with Rose-Gold Accent */}
               <div
                 style={{
                   position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontFamily: '"SF Mono", Monaco, "Courier New", monospace',
-                  fontSize: 54,
-                  fontWeight: 800,
-                  letterSpacing: '0.08em',
-                  color: isRinging ? '#ff5252' : isRunning ? '#00ffd5' : isPaused ? '#ffc107' : '#e0f7fa',
-                  textShadow: isRinging
-                    ? '0 0 16px rgba(255, 82, 82, 0.8), 0 0 32px rgba(255, 82, 82, 0.4)'
-                    : isRunning
-                      ? '0 0 16px rgba(0, 255, 213, 0.75), 0 0 32px rgba(0, 255, 213, 0.35)'
-                      : '0 0 12px rgba(224, 247, 250, 0.4)',
-                  lineHeight: 1,
-                  userSelect: 'none',
+                  top: 7,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                  boxShadow: '0 0 10px rgba(244, 114, 208, 0.85), 0 2px 4px rgba(0,0,0,0.3)',
+                  border: '2px solid #ffffff',
                 }}
-              >
-                <span>{displayMinutes}</span>
-                <span
-                  style={{
-                    opacity: isRunning && !colonVisible ? 0.2 : 1,
-                    transition: 'opacity 0.15s ease',
-                    margin: '0 2px',
-                  }}
-                >
-                  :
-                </span>
-                <span>{displaySeconds}</span>
-              </div>
-            </div>
-
-            {/* Active Label & Heat Wave Indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-              <span
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#9cb1d4',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  maxWidth: 180,
-                }}
-              >
-                {activeTimer
-                  ? `${activeTimer.emoji || '⏱️'} ${activeTimer.label}`
-                  : presetLabel
-                    ? `${presetEmoji} ${presetLabel}`
-                    : 'Enter time on keypad'}
-              </span>
-
-              {isRunning && (
-                <span style={{ fontSize: 13, letterSpacing: '2px', animation: 'pulse 1s infinite' }}>
-                  ♨️♨️♨️
-                </span>
-              )}
-            </div>
-
-            {/* Digital Progress Bar */}
-            <div
-              style={{
-                marginTop: 8,
-                height: 3.5,
-                borderRadius: 2,
-                background: 'rgba(255, 255, 255, 0.08)',
-                overflow: 'hidden',
-                position: 'relative',
-              }}
-            >
+              />
+              {/* Needle Stem */}
               <div
                 style={{
-                  height: '100%',
-                  width: activeTimer ? `${progressPercent}%` : '0%',
-                  background: isRinging
-                    ? '#ff4b4b'
-                    : isPaused
-                      ? '#ffb84d'
-                      : 'linear-gradient(90deg, #00c6ff, #00ffd5)',
-                  boxShadow: isRunning ? '0 0 8px #00ffd5' : 'none',
-                  transition: 'width 0.35s linear',
+                  position: 'absolute',
+                  top: 20,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 3,
+                  height: 18,
+                  background: 'linear-gradient(180deg, #ff8fdc, rgba(255,255,255,0.8))',
+                  borderRadius: 2,
                 }}
               />
             </div>
-          </div>
 
-          {/* 2. AUTO-COOK BAKERY SHORTCUTS (Microwave Function Keys) */}
-          <div style={{ marginBottom: 14 }}>
-            <p
+            {/* CENTER DIGITAL GLASS DISPLAY CORE */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation()
+                handleStartOrPause()
+              }}
               style={{
-                margin: '0 0 6px 2px',
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#9aa0be',
-                fontFamily: '"SF Mono", monospace',
+                position: 'relative',
+                width: 164,
+                height: 164,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 35% 30%, #1e192e 0%, #110d1f 100%)',
+                boxShadow: `
+                  inset 0 4px 14px rgba(0, 0, 0, 0.75),
+                  0 4px 12px rgba(255, 255, 255, 0.6),
+                  0 -2px 6px rgba(0,0,0,0.15)
+                `,
+                border: '2px solid rgba(255, 255, 255, 0.18)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                zIndex: 2,
               }}
             >
-              AUTO-BAKE SHORTCUTS
-            </p>
+              {/* Subtle Glare Reflex */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  left: 24,
+                  right: 24,
+                  height: 34,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 100%)',
+                  pointerEvents: 'none',
+                }}
+              />
 
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-              {BAKERY_PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handlePresetSelect(p)}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 12,
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    background: 'linear-gradient(145deg, rgba(46, 41, 69, 0.8), rgba(28, 25, 45, 0.9))',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    color: '#e4e2f5',
-                    fontSize: 11,
-                    fontFamily: 'var(--font-body)',
-                    fontWeight: 600,
-                    boxShadow: '0 3px 8px rgba(0,0,0,0.3)',
-                    WebkitTapHighlightColor: 'transparent',
-                  }}
-                >
-                  <span>{p.emoji}</span>
-                  <span>{p.label.split(' ')[0]}</span>
-                  <span style={{ color: '#ff8fdc', fontWeight: 700 }}>{p.minutes}m</span>
-                </button>
-              ))}
+              {/* Status Badge */}
+              <span
+                style={{
+                  fontFamily: '"SF Mono", monospace',
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  color: isRinging ? '#ff4b4b' : isRunning ? '#ff8fdc' : isPaused ? '#ffb84d' : '#9ca8c2',
+                  textTransform: 'uppercase',
+                  marginBottom: 2,
+                }}
+              >
+                {isRinging ? '🔔 TIME IS UP!' : isRunning ? '♨️ BAKING' : isPaused ? '⏸ PAUSED' : '● ROTATE DIAL'}
+              </span>
+
+              {/* Large Glowing Digital Readout */}
+              <div
+                style={{
+                  fontFamily: '"SF Mono", Monaco, "Courier New", monospace',
+                  fontSize: 38,
+                  fontWeight: 800,
+                  letterSpacing: '0.04em',
+                  lineHeight: 1,
+                  background: isRinging
+                    ? 'linear-gradient(135deg, #ff4b4b, #ff7575)'
+                    : 'linear-gradient(135deg, #ffffff 40%, #ff8fdc 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  filter: isRinging
+                    ? 'drop-shadow(0 0 10px rgba(255,75,75,0.8))'
+                    : isRunning
+                      ? 'drop-shadow(0 0 10px rgba(244,114,208,0.7))'
+                      : 'drop-shadow(0 0 6px rgba(255,255,255,0.3))',
+                  margin: '4px 0',
+                }}
+              >
+                {displayMinutes}:{displaySeconds}
+              </div>
+
+              {/* Item Label & Tap Prompt */}
+              <span
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#b6c2db',
+                  maxWidth: 130,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'center',
+                }}
+              >
+                {activeTimer ? `${activeTimer.emoji || '⏱️'} ${activeTimer.label}` : `${stagedEmoji} ${stagedLabel}`}
+              </span>
+
+              <span style={{ fontSize: 9.5, color: '#ff8fdc', fontWeight: 700, marginTop: 4 }}>
+                {isRunning ? 'TAP TO PAUSE' : 'TAP TO START'}
+              </span>
             </div>
           </div>
 
-          {/* 3. MICROWAVE KEYPAD (3x4 Matrix with +30s and Clear) */}
-          <div
+          {/* Right Step (+1m) */}
+          <button
+            type="button"
+            onClick={() => handleNudge(1)}
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 8,
-              marginBottom: 14,
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              border: '1.5px solid rgba(255,255,255,0.9)',
+              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
+              boxShadow: '0 6px 16px rgba(100, 90, 130, 0.12), inset 0 1px 0 #ffffff',
+              color: 'var(--charcoal)',
+              fontSize: 18,
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+            aria-label="Plus 1 minute"
+          >
+            +
+          </button>
+        </div>
+
+        {/* Quick Interval Nudge Pills */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={handleAdd30s}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 14,
+              border: '1px solid rgba(255,255,255,0.85)',
+              background: 'rgba(255,255,255,0.7)',
+              backdropFilter: 'blur(10px)',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'var(--charcoal)',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(94, 61, 165, 0.05)',
             }}
           >
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+            +30s
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNudge(5)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 14,
+              border: '1px solid rgba(255,255,255,0.85)',
+              background: 'rgba(255,255,255,0.7)',
+              backdropFilter: 'blur(10px)',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'var(--charcoal)',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(94, 61, 165, 0.05)',
+            }}
+          >
+            +5m
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNudge(10)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 14,
+              border: '1px solid rgba(255,255,255,0.85)',
+              background: 'rgba(255,255,255,0.7)',
+              backdropFilter: 'blur(10px)',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'var(--charcoal)',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(94, 61, 165, 0.05)',
+            }}
+          >
+            +10m
+          </button>
+        </div>
+
+        {/* MAIN DUAL ACTION BUTTONS (Start/Pause & Reset) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12, width: '100%', maxWidth: 360, marginTop: 18 }}>
+          {/* START / PAUSE */}
+          <button
+            type="button"
+            onClick={handleStartOrPause}
+            style={{
+              padding: '15px 20px',
+              borderRadius: 18,
+              border: 'none',
+              background: isRunning
+                ? 'linear-gradient(135deg, #7b52db, #5333ad)'
+                : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+              color: 'white',
+              fontFamily: 'var(--font-body)',
+              fontSize: 15,
+              fontWeight: 700,
+              letterSpacing: '0.03em',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              boxShadow: '0 8px 24px rgba(142, 106, 232, 0.38)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span>{isRunning ? '⏸ PAUSE' : isPaused ? '▶ RESUME' : '▶ START'}</span>
+          </button>
+
+          {/* RESET / STOP */}
+          <button
+            type="button"
+            onClick={handleReset}
+            style={{
+              padding: '15px 20px',
+              borderRadius: 18,
+              border: '1.5px solid rgba(255, 255, 255, 0.9)',
+              background: 'linear-gradient(135deg, #ffffff, #e5e8f0)',
+              color: 'var(--charcoal)',
+              fontFamily: 'var(--font-body)',
+              fontSize: 14.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              boxShadow: '0 6px 18px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span>⏹</span>
+            <span>{isRinging ? 'STOP' : 'RESET'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* QUICK BAKING PRESETS CAROUSEL */}
+      <div style={{ padding: '0 16px 18px' }}>
+        <p
+          style={{
+            margin: '0 0 8px 2px',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'var(--warm-gray)',
+          }}
+        >
+          Quick Baking Presets (Dial auto-rotates)
+        </p>
+
+        <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 6, scrollbarWidth: 'none' }}>
+          {BAKERY_PRESETS.map((p) => {
+            const isMatch = stagedMinutes === p.minutes && stagedLabel === p.label
+
+            return (
               <button
-                key={num}
+                key={p.id}
                 type="button"
-                onClick={() => handleDigitPress(num)}
+                onClick={() => handlePresetSelect(p)}
                 style={{
-                  height: 48,
-                  borderRadius: 14,
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  background: 'linear-gradient(160deg, #2b2742 0%, #1c182e 100%)',
-                  color: '#ffffff',
-                  fontSize: 20,
-                  fontWeight: 700,
-                  fontFamily: '"SF Mono", monospace',
-                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: 16,
+                  border: isMatch
+                    ? '1.5px solid #9d7cff'
+                    : '1px solid rgba(255, 255, 255, 0.85)',
+                  background: isMatch
+                    ? 'linear-gradient(135deg, rgba(255, 143, 220, 0.2), rgba(157, 124, 255, 0.25))'
+                    : 'rgba(255, 255, 255, 0.75)',
+                  backdropFilter: 'blur(10px)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)',
-                  transition: 'transform 0.05s, background 0.15s',
+                  gap: 6,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  fontSize: 12,
+                  fontFamily: 'var(--font-body)',
+                  color: 'var(--charcoal)',
+                  boxShadow: '0 3px 10px rgba(94, 61, 165, 0.05)',
                   WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                {num}
+                <span>{p.emoji}</span>
+                <span style={{ fontWeight: 600 }}>{p.label}</span>
+                <span style={{ color: 'var(--rose)', fontWeight: 700, marginLeft: 2 }}>{p.minutes}m</span>
               </button>
-            ))}
-
-            {/* Clear Button */}
-            <button
-              type="button"
-              onClick={handleClearPress}
-              style={{
-                height: 48,
-                borderRadius: 14,
-                border: '1px solid rgba(255, 90, 90, 0.25)',
-                background: 'linear-gradient(160deg, rgba(82, 32, 45, 0.7), rgba(46, 18, 26, 0.85))',
-                color: '#ff8e99',
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: '"SF Mono", monospace',
-                letterSpacing: '0.06em',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.35)',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              CLEAR
-            </button>
-
-            {/* 0 Key */}
-            <button
-              type="button"
-              onClick={() => handleDigitPress('0')}
-              style={{
-                height: 48,
-                borderRadius: 14,
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                background: 'linear-gradient(160deg, #2b2742 0%, #1c182e 100%)',
-                color: '#ffffff',
-                fontSize: 20,
-                fontWeight: 700,
-                fontFamily: '"SF Mono", monospace',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              0
-            </button>
-
-            {/* Signature Microwave +30 SEC Button */}
-            <button
-              type="button"
-              onClick={handleAdd30s}
-              style={{
-                height: 48,
-                borderRadius: 14,
-                border: '1px solid rgba(0, 255, 213, 0.35)',
-                background: 'linear-gradient(160deg, rgba(14, 66, 60, 0.8), rgba(8, 38, 35, 0.95))',
-                color: '#00ffd5',
-                fontSize: 13,
-                fontWeight: 800,
-                fontFamily: '"SF Mono", monospace',
-                letterSpacing: '0.04em',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(0, 255, 213, 0.2)',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              +30s
-            </button>
-          </div>
-
-          {/* 4. MAIN MICROWAVE START / STOP DUAL CONTROLS */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 10 }}>
-            {/* STOP / RESET BUTTON */}
-            <button
-              type="button"
-              onClick={handlePauseOrStop}
-              style={{
-                padding: '13px 16px',
-                borderRadius: 16,
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                background: 'linear-gradient(160deg, #38314a, #201c2e)',
-                color: '#e4dfef',
-                fontFamily: 'var(--font-body)',
-                fontSize: 13.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              <span>⏹</span>
-              <span>{isRinging ? 'STOP ALARM' : isRunning ? 'PAUSE' : 'RESET'}</span>
-            </button>
-
-            {/* START / +30s BUTTON (Microwave signature glowing pill) */}
-            <button
-              type="button"
-              onClick={handleStartPress}
-              style={{
-                padding: '13px 16px',
-                borderRadius: 16,
-                border: 'none',
-                background: isRunning
-                  ? 'linear-gradient(135deg, #00c6ff, #0072ff)'
-                  : 'linear-gradient(135deg, #ff75c3, #9d7cff)',
-                color: 'white',
-                fontFamily: 'var(--font-body)',
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: '0.03em',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                boxShadow: isRunning
-                  ? '0 6px 20px rgba(0, 114, 255, 0.4)'
-                  : '0 6px 22px rgba(157, 124, 255, 0.4)',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              <span>{isRunning ? '➕ +30s' : isPaused ? '▶ RESUME' : '▶ START'}</span>
-            </button>
-          </div>
+            )
+          })}
         </div>
       </div>
 
@@ -758,8 +817,9 @@ export default function TimerPage() {
             <button
               type="button"
               onClick={() => {
-                setActiveMicrowaveTimerId(null)
-                setDigits('')
+                setActiveDialTimerId(null)
+                setStagedMinutes(20)
+                setStagedLabel('New Tray')
               }}
               style={{
                 background: 'none',
@@ -770,7 +830,7 @@ export default function TimerPage() {
                 cursor: 'pointer',
               }}
             >
-              + New Microwave Timer
+              + Stage Another Timer
             </button>
           )}
         </div>
@@ -780,22 +840,22 @@ export default function TimerPage() {
             style={{
               textAlign: 'center',
               padding: '24px 16px',
-              background: 'rgba(255, 255, 255, 0.55)',
+              background: 'rgba(255, 255, 255, 0.6)',
               borderRadius: 20,
               border: '1px dashed rgba(180, 149, 255, 0.35)',
             }}
           >
             <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: 'var(--charcoal)' }}>
-              Ready to bake!
+              No active timers
             </p>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--warm-gray)' }}>
-              Type time on the microwave keypad above, pick a shortcut, or tap START (+30s).
+              Spin the steel dial above or tap any baking preset to start.
             </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {timers.map((timer) => {
-              const isSelectedOnMicrowave = activeTimer?.id === timer.id
+              const isSelectedOnDial = activeTimer?.id === timer.id
               const isItemRinging = timer.status === 'ringing'
               const isItemPaused = timer.status === 'paused'
               const itemProgress = Math.min(
@@ -806,22 +866,22 @@ export default function TimerPage() {
               return (
                 <div
                   key={timer.id}
-                  onClick={() => setActiveMicrowaveTimerId(timer.id)}
+                  onClick={() => setActiveDialTimerId(timer.id)}
                   style={{
                     background: isItemRinging
                       ? 'linear-gradient(135deg, rgba(255, 235, 235, 0.98), rgba(255, 220, 220, 0.95))'
-                      : isSelectedOnMicrowave
+                      : isSelectedOnDial
                         ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(245, 240, 255, 0.95))'
                         : 'rgba(255, 255, 255, 0.75)',
                     backdropFilter: 'blur(16px)',
                     border: isItemRinging
                       ? '2px solid #ff4b4b'
-                      : isSelectedOnMicrowave
+                      : isSelectedOnDial
                         ? '2px solid #9d7cff'
                         : '1px solid rgba(225, 220, 240, 0.8)',
                     borderRadius: 18,
                     padding: '12px 14px',
-                    boxShadow: isSelectedOnMicrowave
+                    boxShadow: isSelectedOnDial
                       ? '0 6px 20px rgba(157, 124, 255, 0.18)'
                       : '0 2px 10px rgba(78, 51, 143, 0.04)',
                     cursor: 'pointer',
@@ -854,7 +914,7 @@ export default function TimerPage() {
                           <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: 'var(--charcoal)' }}>
                             {timer.label}
                           </h3>
-                          {isSelectedOnMicrowave && (
+                          {isSelectedOnDial && (
                             <span
                               style={{
                                 fontSize: 9.5,
@@ -865,7 +925,7 @@ export default function TimerPage() {
                                 borderRadius: 6,
                               }}
                             >
-                              ON CONSOLE
+                              ON DIAL
                             </span>
                           )}
                         </div>
@@ -894,7 +954,7 @@ export default function TimerPage() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
-                          playMicrowaveKeyBeep()
+                          playDialRatchetClick()
                           addTimeToTimer(timer.id, 60)
                         }}
                         style={{
@@ -917,8 +977,8 @@ export default function TimerPage() {
                         onClick={(e) => {
                           e.stopPropagation()
                           deleteTimer(timer.id)
-                          if (activeMicrowaveTimerId === timer.id) {
-                            setActiveMicrowaveTimerId(null)
+                          if (activeDialTimerId === timer.id) {
+                            setActiveDialTimerId(null)
                           }
                         }}
                         style={{
@@ -996,7 +1056,7 @@ export default function TimerPage() {
                 <input
                   type="number"
                   min="1"
-                  max="360"
+                  max="120"
                   value={customMinutes}
                   onChange={(e) => setCustomMinutes(e.target.value)}
                   className="input-field"
@@ -1014,7 +1074,7 @@ export default function TimerPage() {
                       minutes: mins,
                       emoji: '⏱️',
                     })
-                    setActiveMicrowaveTimerId(t.id)
+                    setActiveDialTimerId(t.id)
                     setCustomLabel('')
                     setCustomMinutes('20')
                     setShowCustomModal(false)
