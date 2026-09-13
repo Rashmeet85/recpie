@@ -1,3 +1,4 @@
+// Kaur's Cakery - Microwave & Digital Dual Bakery Timer Console
 import { useState, useEffect } from 'react'
 import { useTimerStore, BAKERY_PRESETS, playMicrowaveKeyBeep } from '../store/useTimerStore'
 
