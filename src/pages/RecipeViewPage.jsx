@@ -3,6 +3,9 @@ import { useStore, TAG_COLORS } from '../store/useStore'
 import { exportSinglePDF, exportSingleDocx, exportToPDF, exportToDocx } from '../utils/export'
 import { scaleRecipe } from '../utils/recipeScaling'
 import ExportToast from '../components/ExportToast'
+import RecipeAiButton from '../components/ai/RecipeAiButton'
+import RecipeAiMenu from '../components/ai/RecipeAiMenu'
+import AiPreviewModal from '../components/ai/AiPreviewModal'
 
 function BackIcon() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -21,13 +24,20 @@ function DownloadIcon() {
 }
 
 export default function RecipeViewPage() {
-  const { selectedRecipe, setPage, deleteRecipe, recipes, isAdmin } = useStore()
+  const { selectedRecipe, setPage, deleteRecipe, recipes, isAdmin, updateRecipe } = useStore()
   const recipe = selectedRecipe
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportMessage, setExportMessage] = useState('')
   const [scaleFactorInput, setScaleFactorInput] = useState('1')
+
+  const [aiMenuOpen, setAiMenuOpen] = useState(false)
+  const [aiModalOpen, setAiModalOpen] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiAction, setAiAction] = useState('')
+  const [aiResult, setAiResult] = useState(null)
+  const [aiError, setAiError] = useState('')
 
   useEffect(() => {
     if (!exportMessage) return undefined
@@ -77,6 +87,45 @@ export default function RecipeViewPage() {
     } finally {
       setExporting(false)
     }
+  }
+
+  const handleTriggerAiAction = async (actionId) => {
+    setAiMenuOpen(false)
+    setAiAction(actionId)
+    setAiLoading(true)
+    setAiError('')
+    setAiResult(null)
+    setAiModalOpen(true)
+
+    try {
+      const response = await fetch('/api/recipe-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: actionId,
+          recipe,
+          options: { factor: safeScaleFactor },
+        }),
+      })
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}))
+        throw new Error(errJson.error || `Server responded with status ${response.status}`)
+      }
+
+      const data = await response.json()
+      setAiResult(data.result)
+    } catch (err) {
+      console.error('AI error:', err)
+      setAiError(err.message || 'An unexpected error occurred while communicating with the AI.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const handleApplyAiChanges = async (updatedRecipe) => {
+    await updateRecipe(updatedRecipe)
+    showExportMessage('Recipe updated with AI suggestions.')
   }
 
   return (
@@ -517,6 +566,35 @@ export default function RecipeViewPage() {
       {showExportMenu && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowExportMenu(false)} />
       )}
+
+      <RecipeAiButton
+        onClick={() => setAiMenuOpen(!aiMenuOpen)}
+        isOpen={aiMenuOpen}
+        loading={aiLoading}
+      />
+
+      <RecipeAiMenu
+        isOpen={aiMenuOpen}
+        onClose={() => setAiMenuOpen(false)}
+        onSelectAction={handleTriggerAiAction}
+      />
+
+      <AiPreviewModal
+        isOpen={aiModalOpen}
+        onClose={() => {
+          setAiModalOpen(false)
+          setAiLoading(false)
+          setAiError('')
+        }}
+        action={aiAction}
+        loading={aiLoading}
+        error={aiError}
+        result={aiResult}
+        recipe={recipe}
+        onApply={handleApplyAiChanges}
+        onRetry={() => handleTriggerAiAction(aiAction)}
+        isAdmin={isAdmin}
+      />
     </div>
   )
 }
