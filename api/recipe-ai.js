@@ -283,31 +283,101 @@ ${recipeContext}`,
         },
       }
 
+    case 'importRecipe':
+      return {
+        prompt: `You are an expert master baker and recipe digitizer. Extract a clean, complete, structured recipe from the provided input (which may be a messy WhatsApp text, cooking notes, or a photo of a handwritten kitchen notebook).
+CRITICAL RULES:
+- Return JSON only.
+- Pick a single appropriate food emoji (e.g., 🍞 for bread, 🍰 for cake, 🍪 for cookies, 🥐 for pastry, 🍕 for pizza, 🍔 for buns, 🌾 for grains).
+- Assign an accurate Category Tag from strictly one of: "Bread", "Cake", "Cookies", "Pastry", "Other".
+- Extract standard key metadata into "meta":
+  - Bake Temp (e.g. "180°C" or "200°C")
+  - Time (e.g. "25-30 min")
+  - Pan / Tray (e.g. "8 inch round", "9x9 inch")
+  - Yield (e.g. "8 buns", "1 loaf")
+- Split ingredients into clean rows with separate "name" and "amount" (prefer metric weights in grams where available, e.g. "200 g").
+- Standardize Hinglish or Indian kitchen ingredient terms (e.g. Maida -> Maida (All-Purpose Flour), Doodh -> Milk, Makkhan -> Butter, Dahi -> Curd, Atta -> Whole Wheat Flour).
+- Split method instructions into discrete, numbered step strings.
+- Extract any baker's tips or special notes into "tips" and "notes".
+- If any measurement is completely illegible or stained on paper, mark amount as "? g" and do not invent random numbers.
+
+${options.text ? `Pasted Recipe Content:\n${options.text}` : 'Analyze the attached image of the recipe notes.'}`,
+        schema: {
+          type: 'OBJECT',
+          properties: {
+            name: { type: 'STRING', description: 'Name of the recipe' },
+            emoji: { type: 'STRING', description: 'Single food emoji' },
+            tag: { type: 'STRING', description: 'One of: Bread, Cake, Cookies, Pastry, Other' },
+            meta: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  label: { type: 'STRING' },
+                  value: { type: 'STRING' },
+                },
+                required: ['label', 'value'],
+              },
+            },
+            ingredients: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  name: { type: 'STRING' },
+                  amount: { type: 'STRING' },
+                },
+                required: ['name', 'amount'],
+              },
+            },
+            ingredientNote: { type: 'STRING' },
+            method: {
+              type: 'ARRAY',
+              items: { type: 'STRING' },
+            },
+            tips: { type: 'STRING' },
+            notes: { type: 'STRING' },
+          },
+          required: ['name', 'emoji', 'tag', 'ingredients', 'method'],
+        },
+      }
+
     default:
       throw new Error(`Unsupported AI action: ${action}`)
   }
 }
 
-export async function processAiAction({ action, recipe, options = {} }) {
+export async function processAiAction({ action, recipe, options = {}, image = null }) {
   const apiKey = getApiKey()
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not configured on the server.')
   }
 
-  if (!recipe || typeof recipe !== 'object') {
+  if (action !== 'importRecipe' && (!recipe || typeof recipe !== 'object')) {
     throw new Error('Invalid recipe payload provided.')
   }
 
-  const { prompt, schema } = buildSystemPrompt(action, recipe, options)
+  const { prompt, schema } = buildSystemPrompt(action, recipe || {}, options)
 
   const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash'
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+
+  const parts = []
+  if (image?.base64) {
+    parts.push({
+      inlineData: {
+        data: image.base64,
+        mimeType: image.mimeType || 'image/jpeg',
+      },
+    })
+  }
+  parts.push({ text: prompt })
 
   const requestBody = {
     contents: [
       {
         role: 'user',
-        parts: [{ text: prompt }],
+        parts,
       },
     ],
     generationConfig: {
@@ -383,13 +453,13 @@ export default async function handler(req, res) {
       body = JSON.parse(body)
     }
 
-    const { action, recipe, options } = body || {}
+    const { action, recipe, options, image } = body || {}
 
     if (!action) {
       return res.status(400).json({ error: 'Missing action parameter.' })
     }
 
-    const response = await processAiAction({ action, recipe, options })
+    const response = await processAiAction({ action, recipe, options, image })
     return res.status(200).json(response)
   } catch (error) {
     console.error('Recipe AI Handler Error:', error)

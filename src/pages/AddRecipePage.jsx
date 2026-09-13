@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore, TAGS } from '../store/useStore'
 import { normalizeMethodSteps } from '../utils/methodParser'
+import MagicImportModal from '../components/ai/MagicImportModal'
 
 const EMOJIS = ['🍰', '🎂', '🧁', '🍞', '🥐', '🥖', '🥨', '🍩', '🍪', '🫓', '🍕', '🍔', '🥖', '🌾', '🍫', '🎃']
 
@@ -45,6 +46,7 @@ export default function AddRecipePage() {
   } : { ...EMPTY_FORM, meta: EMPTY_FORM.meta.map(m => ({ ...m })), ingredients: [emptyIngredient()], method: [emptyStep()] })
   const [saving, setSaving] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showMagicImport, setShowMagicImport] = useState(false)
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
@@ -55,6 +57,34 @@ export default function AddRecipePage() {
 
   if (!isAdmin) {
     return null
+  }
+
+  const handleApplyImportedRecipe = (imported) => {
+    setForm((prev) => ({
+      ...prev,
+      name: imported.name || prev.name,
+      emoji: imported.emoji || prev.emoji,
+      tag: imported.tag || prev.tag,
+      ingredientNote: imported.ingredientNote || prev.ingredientNote,
+      tips: imported.tips || prev.tips,
+      notes: imported.notes || prev.notes,
+      meta: Array.isArray(imported.meta) && imported.meta.length > 0
+        ? imported.meta.map((m, i) => ({ id: i + 1, label: m.label || '', value: m.value || '' }))
+        : prev.meta,
+      ingredients: Array.isArray(imported.ingredients) && imported.ingredients.length > 0
+        ? imported.ingredients.map((ing) => ({
+            id: Date.now() + Math.random(),
+            name: ing.name || '',
+            amount: ing.amount || '',
+          }))
+        : prev.ingredients,
+      method: Array.isArray(imported.method) && imported.method.length > 0
+        ? imported.method.map((step) => ({
+            id: Date.now() + Math.random(),
+            text: typeof step === 'string' ? step : step?.text || '',
+          }))
+        : prev.method,
+    }))
   }
 
   const update = (field, value) => setForm(f => ({ ...f, [field]: value }))
@@ -113,25 +143,48 @@ export default function AddRecipePage() {
         WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(255,255,255,0.55)',
         padding: '54px 20px 16px',
-        display: 'flex', alignItems: 'center', gap: 12,
+        display: 'flex', alignItems: 'center', gap: 10,
       }} className="no-print">
         <button onClick={() => setPage(isEditing ? 'view' : 'library')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rose)', padding: 4, display: 'flex' }}>
           <BackIcon />
         </button>
-        <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, flex: 1 }}>
+        <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {isEditing ? 'Edit Recipe' : 'New Recipe'}
         </h2>
+        <button
+          onClick={() => setShowMagicImport(true)}
+          type="button"
+          style={{
+            padding: '8px 12px',
+            borderRadius: 12,
+            border: '1px solid rgba(244, 114, 208, 0.35)',
+            background: 'linear-gradient(135deg, rgba(255,218,241,0.7), rgba(219,225,255,0.7))',
+            color: 'var(--rose)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            backdropFilter: 'blur(10px)',
+            flexShrink: 0,
+          }}
+        >
+          <span>🪄</span> Magic Import
+        </button>
         <button
           onClick={handleSave}
           disabled={saving}
           style={{
-            padding: '10px 22px', borderRadius: 12, border: 'none',
+            padding: '10px 20px', borderRadius: 12, border: 'none',
             background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
             color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600,
             fontSize: 14, cursor: 'pointer',
             boxShadow: '0 12px 24px rgba(142, 106, 232, 0.24)',
             opacity: saving ? 0.7 : 1,
             transition: 'opacity 0.2s',
+            flexShrink: 0,
           }}
         >
           {saving ? '…' : 'Save'}
@@ -312,6 +365,12 @@ export default function AddRecipePage() {
           </button>
         </div>
       </div>
+
+      <MagicImportModal
+        isOpen={showMagicImport}
+        onClose={() => setShowMagicImport(false)}
+        onImportRecipe={handleApplyImportedRecipe}
+      />
     </div>
   )
 }
