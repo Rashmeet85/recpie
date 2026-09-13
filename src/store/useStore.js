@@ -399,36 +399,87 @@ export function playNotificationAlarmSound() {
       ctx.resume()
     }
 
-    // Loud, piercing 4-burst commercial bakery timer alarm (E6 + C7 dual harmonics)
-    const bursts = [0, 0.16, 0.32, 0.48]
-    bursts.forEach((offset) => {
-      const startTime = ctx.currentTime + offset
-      const duration = 0.11
+    // Master Dynamics Compressor: delivers high acoustic loudness without harsh clipping or distortion
+    const compressor = ctx.createDynamicsCompressor()
+    compressor.threshold.setValueAtTime(-14, ctx.currentTime)
+    compressor.knee.setValueAtTime(8, ctx.currentTime)
+    compressor.ratio.setValueAtTime(5, ctx.currentTime)
+    compressor.attack.setValueAtTime(0.003, ctx.currentTime)
+    compressor.release.setValueAtTime(0.25, ctx.currentTime)
+    compressor.connect(ctx.destination)
 
-      // Tone 1 (Piercing Primary Alert - 1318.5 Hz E6)
+    // Master Gain for solid, room-filling loudness
+    const masterGain = ctx.createGain()
+    masterGain.gain.setValueAtTime(0.85, ctx.currentTime)
+    masterGain.connect(compressor)
+
+    // Synthesizes a physical bell chime strike with harmonic overtones and natural acoustic decay
+    const playChimeNote = (freq, offset, duration, volume = 0.55) => {
+      const startTime = ctx.currentTime + offset
+
+      // 1. Fundamental tone (warm, round resonant body)
       const osc1 = ctx.createOscillator()
       const gain1 = ctx.createGain()
-      osc1.type = 'triangle'
-      osc1.frequency.setValueAtTime(1318.51, startTime)
-      gain1.gain.setValueAtTime(0.65, startTime)
-      gain1.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
-      osc1.connect(gain1)
-      gain1.connect(ctx.destination)
-      osc1.start(startTime)
-      osc1.stop(startTime + duration)
+      osc1.type = 'sine'
+      osc1.frequency.setValueAtTime(freq, startTime)
 
-      // Tone 2 (High Harmonic Sizzle - 2093 Hz C7)
+      // 2. Bell overtone partial (triangle wave with subtle detuning for natural acoustic shimmer)
       const osc2 = ctx.createOscillator()
       const gain2 = ctx.createGain()
-      osc2.type = 'square'
-      osc2.frequency.setValueAtTime(2093.0, startTime)
-      gain2.gain.setValueAtTime(0.35, startTime)
-      gain2.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+      osc2.type = 'triangle'
+      osc2.frequency.setValueAtTime(freq * 2.002, startTime)
+
+      // 3. Crystal chime overtone (gentle upper harmonic tierce)
+      const osc3 = ctx.createOscillator()
+      const gain3 = ctx.createGain()
+      osc3.type = 'sine'
+      osc3.frequency.setValueAtTime(freq * 3.01, startTime)
+
+      // Strike & exponential decay envelopes
+      gain1.gain.setValueAtTime(0.0001, startTime)
+      gain1.gain.linearRampToValueAtTime(volume, startTime + 0.008)
+      gain1.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
+
+      gain2.gain.setValueAtTime(0.0001, startTime)
+      gain2.gain.linearRampToValueAtTime(volume * 0.38, startTime + 0.006)
+      gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.7)
+
+      gain3.gain.setValueAtTime(0.0001, startTime)
+      gain3.gain.linearRampToValueAtTime(volume * 0.18, startTime + 0.004)
+      gain3.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.45)
+
+      osc1.connect(gain1)
       osc2.connect(gain2)
-      gain2.connect(ctx.destination)
+      osc3.connect(gain3)
+
+      gain1.connect(masterGain)
+      gain2.connect(masterGain)
+      gain3.connect(masterGain)
+
+      osc1.start(startTime)
       osc2.start(startTime)
+      osc3.start(startTime)
+
+      osc1.stop(startTime + duration)
       osc2.stop(startTime + duration)
-    })
+      osc3.stop(startTime + duration)
+    }
+
+    // Harmonious 4-stroke boutique bakery chime sequence (E Major: E5 -> G#5 -> B5 -> Grand Resolution Chord)
+    // Note 1: E5 (659.25 Hz) - Warm introductory chime
+    playChimeNote(659.25, 0.00, 0.95, 0.6)
+
+    // Note 2: G#5 (830.61 Hz) - Sweet harmonious third
+    playChimeNote(830.61, 0.28, 0.95, 0.65)
+
+    // Note 3: B5 (987.77 Hz) - Bright, clear fifth
+    playChimeNote(987.77, 0.56, 1.05, 0.7)
+
+    // Note 4: Grand Resolution Bell Chord (E5 + B5 + E6) with a glorious 2-second resonant decay
+    playChimeNote(659.25, 0.88, 2.0, 0.5)
+    playChimeNote(987.77, 0.88, 2.0, 0.55)
+    playChimeNote(1318.51, 0.88, 2.1, 0.8)
+
   } catch (err) {
     console.warn('Could not play notification sound:', err)
   }

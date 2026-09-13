@@ -178,7 +178,7 @@ function ensureAlarmSoundLoop(hasRinging) {
       playNotificationAlarmSound()
       alarmLoopInterval = setInterval(() => {
         playNotificationAlarmSound()
-      }, 3000)
+      }, 3500)
     }
   } else {
     if (alarmLoopInterval) {
