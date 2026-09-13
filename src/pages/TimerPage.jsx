@@ -1,6 +1,12 @@
-// Kaur's Cakery - 3D Brushed Stainless Steel Circular Rotary Oven & Microwave Timer
+// Kaur's Cakery - Luxury Rose-Gold Stainless Steel Rotary Oven & Bakery Timer
 import { useState, useEffect, useRef } from 'react'
-import { useTimerStore, BAKERY_PRESETS, playDialRatchetClick, playMicrowaveKeyBeep } from '../store/useTimerStore'
+import {
+  useTimerStore,
+  BAKERY_PRESETS,
+  playDialRatchetClick,
+  playMicrowaveKeyBeep,
+} from '../store/useTimerStore'
+import { playNotificationAlarmSound } from '../store/useStore'
 
 function formatTime(totalSeconds) {
   const mins = Math.floor(totalSeconds / 60)
@@ -39,6 +45,7 @@ export default function TimerPage() {
   // Find currently linked timer, or auto-link to the running/ringing timer
   const activeTimer = timers.find((t) => t.id === activeDialTimerId) || null
   const ringingTimers = timers.filter((t) => t.status === 'ringing')
+  const isTimerRunning = Boolean(activeTimer && activeTimer.status === 'running')
 
   useEffect(() => {
     if (!activeDialTimerId && timers.length > 0) {
@@ -76,9 +83,11 @@ export default function TimerPage() {
     displaySeconds = String(s).padStart(2, '0')
   }
 
-  // Handle Touch / Mouse Rotary Drag
+  // Handle Touch / Mouse Rotary Drag (LOCKED while running)
   const updateAngleFromPointer = (clientX, clientY) => {
+    if (isTimerRunning) return // Issue 2: Must NOT allow rotating the dial while running!
     if (!dialRef.current || clientX === undefined || clientY === undefined) return
+
     const rect = dialRef.current.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
@@ -102,15 +111,16 @@ export default function TimerPage() {
       calculatedMinutes = 1
     }
 
-    if (activeTimer) {
+    if (activeTimer && activeTimer.status === 'paused') {
       const newSeconds = calculatedMinutes * 60
       addTimeToTimer(activeTimer.id, newSeconds - activeTimer.remainingSeconds)
-    } else {
+    } else if (!activeTimer) {
       setStagedMinutes(calculatedMinutes)
     }
   }
 
   const handlePointerDown = (e) => {
+    if (isTimerRunning) return // Block rotation while running
     setIsDragging(true)
     const clientX = e.clientX ?? e.touches?.[0]?.clientX
     const clientY = e.clientY ?? e.touches?.[0]?.clientY
@@ -118,7 +128,7 @@ export default function TimerPage() {
   }
 
   const handlePointerMove = (e) => {
-    if (!isDragging) return
+    if (!isDragging || isTimerRunning) return
     const clientX = e.clientX ?? e.touches?.[0]?.clientX
     const clientY = e.clientY ?? e.touches?.[0]?.clientY
     updateAngleFromPointer(clientX, clientY)
@@ -173,7 +183,7 @@ export default function TimerPage() {
 
     const totalSecs = Math.max(30, Math.round(stagedMinutes * 60))
     const t = addTimer({
-      label: stagedLabel || 'Oven Timer',
+      label: stagedLabel || 'Bakery Timer',
       minutes: Math.floor(totalSecs / 60),
       seconds: totalSecs % 60,
       emoji: stagedEmoji || '⏱️',
@@ -191,9 +201,9 @@ export default function TimerPage() {
       }
       setActiveDialTimerId(null)
     }
-    setStagedMinutes(20)
-    setStagedLabel('Custom Bake')
-    setStagedEmoji('⏱️')
+    setStagedMinutes(25)
+    setStagedLabel('Cake Sponge')
+    setStagedEmoji('🎂')
   }
 
   // SVG Gauge calculations (Viewbox 240x240)
@@ -217,35 +227,61 @@ export default function TimerPage() {
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ margin: 0, fontSize: 11, fontFamily: 'var(--font-body)', color: 'var(--light-warm)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
-              Kaur&apos;s Cakery Kitchen
+            <p style={{ margin: 0, fontSize: 11, fontFamily: 'var(--font-body)', color: 'var(--rose)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
+              Kaur&apos;s Cakery
             </p>
-            <h1 style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-              Oven & Bakery Timer
+            <h1 style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 29, fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              Bakery Oven Timer
             </h1>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowCustomModal(true)}
-            style={{
-              padding: '7px 12px',
-              borderRadius: 14,
-              border: 'none',
-              background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
-              color: 'white',
-              fontFamily: 'var(--font-body)',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              boxShadow: '0 4px 14px rgba(142, 106, 232, 0.28)',
-            }}
-          >
-            <span>➕</span> Custom
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Test Alarm Sound preview */}
+            <button
+              type="button"
+              onClick={() => playNotificationAlarmSound()}
+              style={{
+                padding: '7px 11px',
+                borderRadius: 14,
+                border: '1px solid rgba(244, 114, 208, 0.35)',
+                background: 'rgba(255, 255, 255, 0.75)',
+                color: 'var(--rose)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                boxShadow: '0 3px 10px rgba(142, 106, 232, 0.1)',
+              }}
+              title="Test loud alarm chime"
+            >
+              <span>🔊</span> Test Alarm
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowCustomModal(true)}
+              style={{
+                padding: '7px 13px',
+                borderRadius: 14,
+                border: 'none',
+                background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                color: 'white',
+                fontFamily: 'var(--font-body)',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                boxShadow: '0 4px 14px rgba(142, 106, 232, 0.28)',
+              }}
+            >
+              <span>➕</span> Custom
+            </button>
+          </div>
         </div>
       </div>
 
@@ -255,10 +291,10 @@ export default function TimerPage() {
           <div
             style={{
               padding: '12px 16px',
-              borderRadius: 18,
-              background: 'linear-gradient(135deg, #ff3b69, #ff5252)',
+              borderRadius: 20,
+              background: 'linear-gradient(135deg, #ff416c, #ff4b2b)',
               color: 'white',
-              boxShadow: '0 10px 28px rgba(255, 59, 105, 0.45)',
+              boxShadow: '0 10px 28px rgba(255, 75, 43, 0.45)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -269,11 +305,11 @@ export default function TimerPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 26, animation: 'spin 1.4s infinite linear' }}>⏰</span>
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5 }}>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 14 }}>
                   {ringingTimers.map((t) => t.label).join(', ')} Ready!
                 </p>
-                <p style={{ margin: '1px 0 0', fontSize: 11, opacity: 0.9 }}>
-                  Time to check your oven or counter!
+                <p style={{ margin: '1px 0 0', fontSize: 11.5, opacity: 0.95 }}>
+                  Bake finished — tap Stop Alarm below!
                 </p>
               </div>
             </div>
@@ -282,16 +318,16 @@ export default function TimerPage() {
               type="button"
               onClick={stopAllAlarms}
               style={{
-                padding: '8px 14px',
-                borderRadius: 12,
+                padding: '9px 16px',
+                borderRadius: 14,
                 border: 'none',
                 background: 'white',
-                color: '#ff3b69',
-                fontSize: 12.5,
-                fontWeight: 700,
+                color: '#ff416c',
+                fontSize: 13,
+                fontWeight: 800,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
               }}
             >
               Stop Alarm
@@ -300,426 +336,461 @@ export default function TimerPage() {
         </div>
       )}
 
-      {/* HERO 3D ROTARY OVEN DIAL SECTION */}
-      <div style={{ padding: '8px 16px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        
-        {/* RECESSED 3D BASE DISH (Appliance cutout bezel) */}
+      {/* HERO BAKERY PEDESTAL CARD (Matches Kaur's Cakery Soft Glass Aesthetic) */}
+      <div style={{ padding: '0 16px 18px' }}>
         <div
           style={{
-            position: 'relative',
-            width: 'min(272px, 80vw)',
-            height: 'min(272px, 80vw)',
-            aspectRatio: '1 / 1',
-            borderRadius: '50%',
-            background: 'linear-gradient(145deg, #d8dde6, #f3f5f8)',
-            boxShadow: `
-              inset 0 4px 10px rgba(0, 0, 0, 0.22),
-              inset 0 -3px 6px rgba(255, 255, 255, 0.9),
-              0 14px 34px rgba(78, 62, 125, 0.16)
-            `,
-            border: '1.5px solid rgba(255, 255, 255, 0.8)',
+            background: 'rgba(255, 255, 255, 0.72)',
+            backdropFilter: 'blur(28px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+            borderRadius: 32,
+            border: '1.5px solid rgba(255, 255, 255, 0.88)',
+            boxShadow: '0 18px 45px rgba(122, 96, 209, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+            padding: '22px 16px 22px',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            margin: '0 auto',
           }}
         >
-          {/* MAIN 3D ROTARY CYLINDER KNOB (Touches and rotates) */}
+          {/* ROTARY KNOB ASSEMBLY */}
           <div
-            ref={dialRef}
-            onPointerDown={handlePointerDown}
             style={{
               position: 'relative',
-              width: '90%',
-              height: '90%',
+              width: 'min(270px, 78vw)',
+              height: 'min(270px, 78vw)',
+              aspectRatio: '1 / 1',
               borderRadius: '50%',
-              background: `
-                radial-gradient(circle at 35% 28%, #ffffff 0%, #e2e6ec 32%, #b5becc 72%, #8e99a8 100%)
-              `,
+              /* Outer Rose-Gold Stainless Base Dish */
+              background: 'linear-gradient(145deg, #f8f4fc, #e8ddf5)',
               boxShadow: `
-                0 12px 28px rgba(18, 14, 32, 0.35),
-                0 4px 10px rgba(0, 0, 0, 0.2),
-                inset 0 2px 4px rgba(255, 255, 255, 0.95),
-                inset 0 -3px 6px rgba(0, 0, 0, 0.28)
+                inset 0 4px 10px rgba(110, 80, 160, 0.18),
+                inset 0 -3px 6px rgba(255, 255, 255, 0.95),
+                0 14px 34px rgba(122, 96, 209, 0.18)
               `,
-              border: '2.5px solid #ffffff',
+              border: '2px solid rgba(255, 255, 255, 0.9)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: isDragging ? 'grabbing' : 'grab',
-              touchAction: 'none',
               flexShrink: 0,
+              margin: '0 auto',
             }}
           >
-            {/* Knurled Outer Metallic Grip Ring */}
+            {/* 3D CYLINDER KNOB (Touches and rotates when not running) */}
             <div
-              style={{
-                position: 'absolute',
-                inset: 5,
-                borderRadius: '50%',
-                border: '1.5px dashed rgba(140, 150, 168, 0.55)',
-                pointerEvents: 'none',
-              }}
-            />
-
-            {/* SVG Graduation Dial Marks (0, 5, 10, 15... 60) & Progress Arc */}
-            <svg
-              viewBox="0 0 240 240"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-            >
-              {/* 60 Minute Tick Marks */}
-              {[...Array(60)].map((_, i) => {
-                const tickAngle = (i / 60) * 360
-                const isMajor = i % 5 === 0
-                const tickLength = isMajor ? 8 : 4
-                const tickWidth = isMajor ? 2.2 : 1
-                const tickColor = isMajor ? '#4a5568' : '#9aa5b6'
-
-                return (
-                  <line
-                    key={i}
-                    x1="120"
-                    y1={12}
-                    x2="120"
-                    y2={12 + tickLength}
-                    stroke={tickColor}
-                    strokeWidth={tickWidth}
-                    strokeLinecap="round"
-                    transform={`rotate(${tickAngle} 120 120)`}
-                  />
-                )
-              })}
-
-              {/* Number Labels: 0, 15, 30, 45 */}
-              <text x="120" y="32" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
-                0
-              </text>
-              <text x="212" y="124" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
-                15
-              </text>
-              <text x="120" y="218" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
-                30
-              </text>
-              <text x="28" y="124" textAnchor="middle" fill="#3e4756" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
-                45
-              </text>
-
-              {/* Circular Glowing Rose/Lavender Progress Track */}
-              <circle
-                cx="120"
-                cy="120"
-                r={radius}
-                fill="none"
-                stroke="rgba(157, 124, 255, 0.14)"
-                strokeWidth="5"
-              />
-              <circle
-                cx="120"
-                cy="120"
-                r={radius}
-                fill="none"
-                stroke="url(#progressGradient)"
-                strokeWidth="5"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                transform="rotate(-90 120 120)"
-                style={{
-                  filter: 'drop-shadow(0 0 6px rgba(244, 114, 208, 0.7))',
-                  transition: isDragging ? 'none' : 'stroke-dashoffset 0.3s ease',
-                }}
-              />
-
-              <defs>
-                <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ff8fdc" />
-                  <stop offset="100%" stopColor="#9d7cff" />
-                </linearGradient>
-              </defs>
-            </svg>
-
-            {/* ROTATING 3D METALLIC NEEDLE & ROSE-GOLD POINTER */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                transform: `rotate(${currentAngle}deg)`,
-                pointerEvents: 'none',
-                transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2,0,0,1)',
-              }}
-            >
-              {/* 3D Rose-Gold Indicator Bead with Under-Shadow */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 6,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  background: 'radial-gradient(circle at 35% 30%, #ffffff 0%, #ff8fdc 45%, #b652aa 100%)',
-                  boxShadow: `
-                    0 3px 6px rgba(0, 0, 0, 0.4),
-                    0 0 10px rgba(244, 114, 208, 0.9)
-                  `,
-                  border: '2px solid #ffffff',
-                }}
-              />
-              {/* Embossed Metallic Pointer Stem */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 18,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 3.5,
-                  height: 15,
-                  background: 'linear-gradient(180deg, #ff8fdc 0%, rgba(255,255,255,0.9) 100%)',
-                  borderRadius: 2,
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                }}
-              />
-            </div>
-
-            {/* RECESSED CENTER DIGITAL GLASS DISPLAY CORE */}
-            <div
-              onClick={(e) => {
-                e.stopPropagation()
-                handleStartOrPause()
-              }}
+              ref={dialRef}
+              onPointerDown={handlePointerDown}
               style={{
                 position: 'relative',
-                width: '63%',
-                height: '63%',
+                width: '90%',
+                height: '90%',
                 borderRadius: '50%',
-                background: 'radial-gradient(circle at 35% 25%, #201a33 0%, #0c0817 100%)',
-                boxShadow: `
-                  inset 0 6px 14px rgba(0, 0, 0, 0.85),
-                  inset 0 -2px 6px rgba(255, 255, 255, 0.15),
-                  0 4px 10px rgba(255, 255, 255, 0.6)
+                /* Warm Champagne Platinum Steel Finish */
+                background: `
+                  radial-gradient(circle at 35% 28%, #ffffff 0%, #f6effb 30%, #dcd0ec 72%, #b5a4ce 100%)
                 `,
-                border: '2px solid rgba(255, 255, 255, 0.18)',
+                boxShadow: `
+                  0 12px 28px rgba(50, 30, 85, 0.28),
+                  0 4px 10px rgba(0, 0, 0, 0.12),
+                  inset 0 2px 4px rgba(255, 255, 255, 0.95),
+                  inset 0 -3px 6px rgba(110, 80, 160, 0.25)
+                `,
+                border: '2.5px solid #ffffff',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer',
-                zIndex: 2,
+                cursor: isTimerRunning ? 'default' : isDragging ? 'grabbing' : 'grab',
+                touchAction: 'none',
                 flexShrink: 0,
               }}
             >
-              {/* Convex Glass Glare Reflection */}
+              {/* Knurled Outer Bezel Grip Ring */}
               <div
                 style={{
                   position: 'absolute',
-                  top: 6,
-                  left: 18,
-                  right: 18,
-                  height: 30,
+                  inset: 5,
                   borderRadius: '50%',
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 100%)',
+                  border: '1.5px dashed rgba(160, 140, 195, 0.55)',
                   pointerEvents: 'none',
                 }}
               />
 
-              {/* Status Badge */}
-              <span
-                style={{
-                  fontFamily: '"SF Mono", monospace',
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  color: isRinging ? '#ff4b4b' : isRunning ? '#ff8fdc' : isPaused ? '#ffb84d' : '#9ca8c2',
-                  textTransform: 'uppercase',
-                  marginBottom: 2,
-                }}
+              {/* SVG Graduation Dial Marks (0, 5, 10, 15... 60) & Progress Arc */}
+              <svg
+                viewBox="0 0 240 240"
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
               >
-                {isRinging ? '🔔 TIME IS UP!' : isRunning ? '♨️ BAKING' : isPaused ? '⏸ PAUSED' : '● ROTATE DIAL'}
-              </span>
+                {/* 60 Minute Tick Marks */}
+                {[...Array(60)].map((_, i) => {
+                  const tickAngle = (i / 60) * 360
+                  const isMajor = i % 5 === 0
+                  const tickLength = isMajor ? 8 : 4
+                  const tickWidth = isMajor ? 2.2 : 1
+                  const tickColor = isMajor ? '#6c5b87' : '#b8a8d1'
 
-              {/* Glowing Digital Time Readout */}
+                  return (
+                    <line
+                      key={i}
+                      x1="120"
+                      y1={12}
+                      x2="120"
+                      y2={12 + tickLength}
+                      stroke={tickColor}
+                      strokeWidth={tickWidth}
+                      strokeLinecap="round"
+                      transform={`rotate(${tickAngle} 120 120)`}
+                    />
+                  )
+                })}
+
+                {/* Number Labels: 0, 15, 30, 45 */}
+                <text x="120" y="32" textAnchor="middle" fill="#5c4878" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
+                  0
+                </text>
+                <text x="212" y="124" textAnchor="middle" fill="#5c4878" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
+                  15
+                </text>
+                <text x="120" y="218" textAnchor="middle" fill="#5c4878" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
+                  30
+                </text>
+                <text x="28" y="124" textAnchor="middle" fill="#5c4878" fontSize="10.5" fontWeight="800" fontFamily="var(--font-body)">
+                  45
+                </text>
+
+                {/* Circular Glowing Rose/Lavender Progress Track */}
+                <circle
+                  cx="120"
+                  cy="120"
+                  r={radius}
+                  fill="none"
+                  stroke="rgba(157, 124, 255, 0.16)"
+                  strokeWidth="5"
+                />
+                <circle
+                  cx="120"
+                  cy="120"
+                  r={radius}
+                  fill="none"
+                  stroke="url(#progressGradient)"
+                  strokeWidth="5.5"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  transform="rotate(-90 120 120)"
+                  style={{
+                    filter: 'drop-shadow(0 0 6px rgba(244, 114, 208, 0.75))',
+                    transition: isDragging ? 'none' : 'stroke-dashoffset 0.3s ease',
+                  }}
+                />
+
+                <defs>
+                  <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#ff8fdc" />
+                    <stop offset="100%" stopColor="#9d7cff" />
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              {/* ROTATING 3D METALLIC NEEDLE & ROSE-GOLD POINTER */}
               <div
                 style={{
-                  fontFamily: '"SF Mono", Monaco, "Courier New", monospace',
-                  fontSize: 'clamp(28px, 8vw, 36px)',
-                  fontWeight: 800,
-                  letterSpacing: '0.04em',
-                  lineHeight: 1,
-                  background: isRinging
-                    ? 'linear-gradient(135deg, #ff4b4b, #ff7575)'
-                    : 'linear-gradient(135deg, #ffffff 40%, #ff8fdc 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  filter: isRinging
-                    ? 'drop-shadow(0 0 10px rgba(255,75,75,0.8))'
-                    : isRunning
-                      ? 'drop-shadow(0 0 10px rgba(244,114,208,0.7))'
-                      : 'drop-shadow(0 0 6px rgba(255,255,255,0.3))',
-                  margin: '3px 0',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  transform: `rotate(${currentAngle}deg)`,
+                  pointerEvents: 'none',
+                  transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2,0,0,1)',
                 }}
               >
-                {displayMinutes}:{displaySeconds}
+                {/* 3D Rose-Gold Indicator Bead with Under-Shadow */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle at 35% 30%, #ffffff 0%, #ff8fdc 45%, #b652aa 100%)',
+                    boxShadow: `
+                      0 3px 6px rgba(0, 0, 0, 0.4),
+                      0 0 10px rgba(244, 114, 208, 0.95)
+                    `,
+                    border: '2px solid #ffffff',
+                  }}
+                />
+                {/* Embossed Metallic Pointer Stem */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 18,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 3.5,
+                    height: 15,
+                    background: 'linear-gradient(180deg, #ff8fdc 0%, rgba(255,255,255,0.9) 100%)',
+                    borderRadius: 2,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  }}
+                />
               </div>
 
-              {/* Food / Preset Label */}
-              <span
+              {/* RECESSED LUXURY AMETHYST GLASS CORE DISPLAY */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleStartOrPause()
+                }}
                 style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  color: '#b6c2db',
-                  maxWidth: 110,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  textAlign: 'center',
+                  position: 'relative',
+                  width: '63%',
+                  height: '63%',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(circle at 35% 25%, #251b3a 0%, #150f24 100%)',
+                  boxShadow: `
+                    inset 0 6px 14px rgba(0, 0, 0, 0.85),
+                    inset 0 -2px 6px rgba(255, 255, 255, 0.15),
+                    0 4px 10px rgba(255, 255, 255, 0.6)
+                  `,
+                  border: '2px solid rgba(255, 255, 255, 0.18)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  zIndex: 2,
+                  flexShrink: 0,
                 }}
               >
-                {activeTimer ? `${activeTimer.emoji || '⏱️'} ${activeTimer.label}` : `${stagedEmoji} ${stagedLabel}`}
-              </span>
+                {/* Convex Glass Glare Reflection */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    left: 18,
+                    right: 18,
+                    height: 30,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 100%)',
+                    pointerEvents: 'none',
+                  }}
+                />
 
-              <span style={{ fontSize: 9, color: '#ff8fdc', fontWeight: 700, marginTop: 3 }}>
-                {isRunning ? 'TAP TO PAUSE' : 'TAP TO START'}
-              </span>
+                {/* Status Indicator Badge */}
+                <span
+                  style={{
+                    fontFamily: '"SF Mono", monospace',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    color: isRinging ? '#ff4d6d' : isRunning ? '#ff8fdc' : isPaused ? '#ffb84d' : '#9ca8c2',
+                    textTransform: 'uppercase',
+                    marginBottom: 2,
+                  }}
+                >
+                  {isRinging ? '🔔 READY!' : isRunning ? '♨️ BAKING' : isPaused ? '⏸ PAUSED' : '● ROTATE DIAL'}
+                </span>
+
+                {/* Crystal-Clear Digital Time Readout (NO WebkitBackgroundClip to prevent solid blocks) */}
+                <div
+                  style={{
+                    fontFamily: '"SF Mono", Monaco, "Courier New", monospace',
+                    fontSize: 'clamp(28px, 8vw, 36px)',
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    lineHeight: 1,
+                    color: isRinging ? '#ff4d6d' : '#ffffff',
+                    textShadow: isRinging
+                      ? '0 0 16px rgba(255, 77, 109, 0.95), 0 0 30px rgba(255, 77, 109, 0.4)'
+                      : isRunning
+                        ? '0 0 14px rgba(244, 114, 208, 0.8), 0 0 25px rgba(157, 124, 255, 0.4)'
+                        : '0 0 8px rgba(255, 255, 255, 0.4)',
+                    margin: '3px 0',
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  {displayMinutes}:{displaySeconds}
+                </div>
+
+                {/* Food / Preset Label */}
+                <span
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    color: '#dcd1ec',
+                    maxWidth: 110,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    textAlign: 'center',
+                  }}
+                >
+                  {activeTimer ? `${activeTimer.emoji || '⏱️'} ${activeTimer.label}` : `${stagedEmoji} ${stagedLabel}`}
+                </span>
+
+                {/* Action Hint / Lock Note */}
+                <span style={{ fontSize: 9, color: isTimerRunning ? '#ffb84d' : '#ff8fdc', fontWeight: 700, marginTop: 3 }}>
+                  {isTimerRunning ? '🔒 RUNNING (TAP PAUSE)' : isPaused ? '▶ TAP RESUME' : '▶ TAP START'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* ERGONOMIC STEPPER CONTROLS BAR (Directly below dial, never squeezing) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
-          <button
-            type="button"
-            onClick={() => handleNudge(-1)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 14,
-              border: '1px solid rgba(255,255,255,0.9)',
-              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
-              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
-              color: 'var(--charcoal)',
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            – 1m
-          </button>
+          {/* Locked Notice Banner (Only shown while timer is running) */}
+          {isTimerRunning && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '4px 12px',
+                borderRadius: 12,
+                background: 'rgba(157, 124, 255, 0.12)',
+                border: '1px solid rgba(157, 124, 255, 0.25)',
+                color: 'var(--warm-gray)',
+                fontSize: 11,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <span>🔒</span> Dial locked while baking. Tap center or Pause to adjust.
+            </div>
+          )}
 
-          <button
-            type="button"
-            onClick={handleAdd30s}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 14,
-              border: '1px solid rgba(255,255,255,0.9)',
-              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
-              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
-              color: 'var(--charcoal)',
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            + 30s
-          </button>
+          {/* STEPPER CONTROLS BAR (Directly below dial) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+            <button
+              type="button"
+              onClick={() => handleNudge(-1)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.9)',
+                background: 'linear-gradient(135deg, #ffffff, #f3ebfa)',
+                boxShadow: '0 4px 12px rgba(100, 90, 130, 0.08), inset 0 1px 0 #ffffff',
+                color: 'var(--charcoal)',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              – 1m
+            </button>
 
-          <button
-            type="button"
-            onClick={() => handleNudge(1)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 14,
-              border: '1px solid rgba(255,255,255,0.9)',
-              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
-              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
-              color: 'var(--charcoal)',
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            + 1m
-          </button>
+            <button
+              type="button"
+              onClick={handleAdd30s}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.9)',
+                background: 'linear-gradient(135deg, #ffffff, #f3ebfa)',
+                boxShadow: '0 4px 12px rgba(100, 90, 130, 0.08), inset 0 1px 0 #ffffff',
+                color: 'var(--charcoal)',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              + 30s
+            </button>
 
-          <button
-            type="button"
-            onClick={() => handleNudge(5)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 14,
-              border: '1px solid rgba(255,255,255,0.9)',
-              background: 'linear-gradient(135deg, #ffffff, #e6e8ee)',
-              boxShadow: '0 4px 12px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
-              color: 'var(--charcoal)',
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            + 5m
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => handleNudge(1)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.9)',
+                background: 'linear-gradient(135deg, #ffffff, #f3ebfa)',
+                boxShadow: '0 4px 12px rgba(100, 90, 130, 0.08), inset 0 1px 0 #ffffff',
+                color: 'var(--charcoal)',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              + 1m
+            </button>
 
-        {/* MAIN DUAL ACTION BUTTONS (Start/Pause & Reset) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 10, width: '100%', maxWidth: 320, marginTop: 16 }}>
-          {/* START / PAUSE */}
-          <button
-            type="button"
-            onClick={handleStartOrPause}
-            style={{
-              padding: '14px 18px',
-              borderRadius: 18,
-              border: 'none',
-              background: isRunning
-                ? 'linear-gradient(135deg, #7b52db, #5333ad)'
-                : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
-              color: 'white',
-              fontFamily: 'var(--font-body)',
-              fontSize: 14.5,
-              fontWeight: 700,
-              letterSpacing: '0.03em',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              boxShadow: '0 8px 24px rgba(142, 106, 232, 0.38)',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            <span>{isRunning ? '⏸ PAUSE' : isPaused ? '▶ RESUME' : '▶ START'}</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleNudge(5)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.9)',
+                background: 'linear-gradient(135deg, #ffffff, #f3ebfa)',
+                boxShadow: '0 4px 12px rgba(100, 90, 130, 0.08), inset 0 1px 0 #ffffff',
+                color: 'var(--charcoal)',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              + 5m
+            </button>
+          </div>
 
-          {/* RESET / STOP */}
-          <button
-            type="button"
-            onClick={handleReset}
-            style={{
-              padding: '14px 18px',
-              borderRadius: 18,
-              border: '1.5px solid rgba(255, 255, 255, 0.9)',
-              background: 'linear-gradient(135deg, #ffffff, #e5e8f0)',
-              color: 'var(--charcoal)',
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              boxShadow: '0 6px 18px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            <span>⏹</span>
-            <span>{isRinging ? 'STOP' : 'RESET'}</span>
-          </button>
+          {/* MAIN DUAL ACTION BUTTONS (Start/Pause & Reset) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 10, width: '100%', maxWidth: 320, marginTop: 16 }}>
+            {/* START / PAUSE */}
+            <button
+              type="button"
+              onClick={handleStartOrPause}
+              style={{
+                padding: '14px 18px',
+                borderRadius: 18,
+                border: 'none',
+                background: isRunning
+                  ? 'linear-gradient(135deg, #7b52db, #5333ad)'
+                  : 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                color: 'white',
+                fontFamily: 'var(--font-body)',
+                fontSize: 14.5,
+                fontWeight: 700,
+                letterSpacing: '0.03em',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 8px 24px rgba(142, 106, 232, 0.38)',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              <span>{isRunning ? '⏸ PAUSE' : isPaused ? '▶ RESUME' : '▶ START'}</span>
+            </button>
+
+            {/* RESET / STOP */}
+            <button
+              type="button"
+              onClick={handleReset}
+              style={{
+                padding: '14px 18px',
+                borderRadius: 18,
+                border: '1.5px solid rgba(255, 255, 255, 0.9)',
+                background: 'linear-gradient(135deg, #ffffff, #f0e6fa)',
+                color: 'var(--charcoal)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                boxShadow: '0 6px 18px rgba(100, 90, 130, 0.1), inset 0 1px 0 #ffffff',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              <span>⏹</span>
+              <span>{isRinging ? 'STOP' : 'RESET'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -754,7 +825,7 @@ export default function TimerPage() {
                     ? '1.5px solid #9d7cff'
                     : '1px solid rgba(255, 255, 255, 0.85)',
                   background: isMatch
-                    ? 'linear-gradient(135deg, rgba(255, 143, 220, 0.2), rgba(157, 124, 255, 0.25))'
+                    ? 'linear-gradient(135deg, rgba(255, 143, 220, 0.22), rgba(157, 124, 255, 0.28))'
                     : 'rgba(255, 255, 255, 0.75)',
                   backdropFilter: 'blur(10px)',
                   display: 'flex',

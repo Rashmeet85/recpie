@@ -399,20 +399,35 @@ export function playNotificationAlarmSound() {
       ctx.resume()
     }
 
-    // Pleasant boutique kitchen bell chime (E5 -> G#5 -> B5)
-    const tones = [659.25, 830.61, 987.77]
-    tones.forEach((freq, idx) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      const startTime = ctx.currentTime + idx * 0.12
-      osc.frequency.setValueAtTime(freq, startTime)
-      gain.gain.setValueAtTime(0.28, startTime)
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(startTime)
-      osc.stop(startTime + 0.38)
+    // Loud, piercing 4-burst commercial bakery timer alarm (E6 + C7 dual harmonics)
+    const bursts = [0, 0.16, 0.32, 0.48]
+    bursts.forEach((offset) => {
+      const startTime = ctx.currentTime + offset
+      const duration = 0.11
+
+      // Tone 1 (Piercing Primary Alert - 1318.5 Hz E6)
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.type = 'triangle'
+      osc1.frequency.setValueAtTime(1318.51, startTime)
+      gain1.gain.setValueAtTime(0.65, startTime)
+      gain1.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+      osc1.connect(gain1)
+      gain1.connect(ctx.destination)
+      osc1.start(startTime)
+      osc1.stop(startTime + duration)
+
+      // Tone 2 (High Harmonic Sizzle - 2093 Hz C7)
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = 'square'
+      osc2.frequency.setValueAtTime(2093.0, startTime)
+      gain2.gain.setValueAtTime(0.35, startTime)
+      gain2.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+      osc2.connect(gain2)
+      gain2.connect(ctx.destination)
+      osc2.start(startTime)
+      osc2.stop(startTime + duration)
     })
   } catch (err) {
     console.warn('Could not play notification sound:', err)

@@ -122,25 +122,51 @@ export function playMicrowaveKeyBeep() {
 
 export function playDialRatchetClick() {
   if (typeof window === 'undefined') return
+
+  // Subtle mobile haptic feedback if supported
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(8)
+    }
+  } catch {
+    // ignore
+  }
+
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext
     if (!AudioContext) return
     const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
+    if (ctx.state === 'suspended') {
+      ctx.resume()
+    }
 
-    osc.type = 'triangle'
-    osc.frequency.setValueAtTime(2400, ctx.currentTime)
-    osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.015)
+    const t = ctx.currentTime
 
-    gain.gain.setValueAtTime(0.045, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.015)
+    // 1. High crisp mechanical teeth click (2800Hz -> 1200Hz)
+    const osc1 = ctx.createOscillator()
+    const gain1 = ctx.createGain()
+    osc1.type = 'triangle'
+    osc1.frequency.setValueAtTime(2800, t)
+    osc1.frequency.exponentialRampToValueAtTime(1200, t + 0.012)
+    gain1.gain.setValueAtTime(0.08, t)
+    gain1.gain.exponentialRampToValueAtTime(0.0001, t + 0.012)
+    osc1.connect(gain1)
+    gain1.connect(ctx.destination)
+    osc1.start(t)
+    osc1.stop(t + 0.014)
 
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-
-    osc.start()
-    osc.stop(ctx.currentTime + 0.015)
+    // 2. Low mechanical knob body detent thud (380Hz)
+    const osc2 = ctx.createOscillator()
+    const gain2 = ctx.createGain()
+    osc2.type = 'sine'
+    osc2.frequency.setValueAtTime(380, t)
+    osc2.frequency.exponentialRampToValueAtTime(140, t + 0.018)
+    gain2.gain.setValueAtTime(0.05, t)
+    gain2.gain.exponentialRampToValueAtTime(0.0001, t + 0.018)
+    osc2.connect(gain2)
+    gain2.connect(ctx.destination)
+    osc2.start(t)
+    osc2.stop(t + 0.02)
   } catch {
     // ignore
   }
