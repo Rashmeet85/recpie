@@ -3,17 +3,8 @@ import { createPortal } from 'react-dom'
 import { useStore, getLocalDateString } from '../../store/useStore'
 import { optimizeOrderPhoto } from '../../utils/imageOptimizer'
 
-const WEIGHT_PRESETS = ['0.5 kg', '1 kg', '1.5 kg', '2 kg', '3 kg', 'Custom']
-const COMMON_FLAVORS = [
-  'Belgian Chocolate',
-  'Red Velvet',
-  'Pineapple',
-  'Butterscotch',
-  'Fresh Fruit',
-  'Black Forest',
-  'Vanilla Bean',
-  'Truffle',
-]
+const WEIGHT_PRESETS = ['0.5 kg', '1 kg', '1.5 kg', '2 kg', 'Custom']
+const QUICK_FLAVORS = ['Belgian Truffle', 'Red Velvet', 'Pineapple', 'Butterscotch', 'Fresh Fruit']
 
 export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
   const { addOrder, updateOrder } = useStore()
@@ -58,7 +49,6 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
       setAdvancePaid(orderToEdit.advancePaid !== undefined ? String(orderToEdit.advancePaid) : '')
       setReferencePhoto(orderToEdit.referencePhoto || null)
     } else {
-      // Default new order to tomorrow
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
       setCustomerName('')
@@ -80,7 +70,6 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
 
   if (!isOpen || typeof document === 'undefined') return null
 
-  // Balance calculation
   const totalNum = parseFloat(totalPrice) || 0
   const advanceNum = parseFloat(advancePaid) || 0
   const balanceDue = Math.max(0, totalNum - advanceNum)
@@ -95,27 +84,22 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
       const optimized = await optimizeOrderPhoto(file, 1000)
       setReferencePhoto(optimized.dataUrl)
     } catch (err) {
-      console.error('Photo optimization error:', err)
-      setError('Could not process photo. Please try a different image.')
+      console.error('Photo error:', err)
+      setError('Could not process photo.')
     } finally {
       setOptimizing(false)
       e.target.value = ''
     }
   }
 
-  const handleRemovePhoto = (e) => {
-    e.stopPropagation()
-    setReferencePhoto(null)
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!customerName.trim()) {
-      setError('Please enter the customer name.')
+      setError('Please enter customer name.')
       return
     }
     if (!deliveryDate) {
-      setError('Please select a delivery date.')
+      setError('Please choose a delivery date.')
       return
     }
 
@@ -151,7 +135,7 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
       onClose()
     } catch (err) {
       console.error('Error saving order:', err)
-      setError('Could not save order. Please check your connection and try again.')
+      setError('Failed to save order. Please retry.')
     } finally {
       setSaving(false)
     }
@@ -163,81 +147,66 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: 'rgba(28, 26, 46, 0.45)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
+        background: 'rgba(28, 26, 46, 0.5)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end', // Bottom-sheet on mobile
         justifyContent: 'center',
-        padding: 16,
       }}
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="animate-scale-in"
+        className="animate-fade-up"
         style={{
           width: '100%',
-          maxWidth: 540,
-          maxHeight: 'min(92dvh, 800px)',
-          background: 'rgba(252, 250, 255, 0.96)',
-          backdropFilter: 'blur(28px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+          maxWidth: 520,
+          maxHeight: 'min(92dvh, 780px)',
+          background: 'rgba(254, 252, 255, 0.98)',
+          backdropFilter: 'blur(30px)',
+          WebkitBackdropFilter: 'blur(30px)',
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
           border: '1px solid rgba(255, 255, 255, 0.9)',
-          borderRadius: 24,
-          boxShadow: '0 28px 70px rgba(68, 43, 128, 0.28)',
+          boxShadow: '0 -10px 40px rgba(68, 43, 128, 0.22)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}
       >
-        {/* Hidden inputs for camera & gallery */}
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoSelect}
-          style={{ display: 'none' }}
-        />
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handlePhotoSelect}
-          style={{ display: 'none' }}
-        />
+        {/* Hidden photo inputs */}
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelect} style={{ display: 'none' }} />
+        <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: 'none' }} />
 
         {/* Modal Header */}
         <div
           style={{
-            padding: '18px 20px 14px',
-            borderBottom: '1px solid rgba(151, 145, 190, 0.2)',
+            padding: '16px 20px 12px',
+            borderBottom: '1px solid rgba(151, 145, 190, 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 12,
           }}
         >
           <div>
-            <p style={{ margin: '0 0 2px', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--light-warm)', fontFamily: 'var(--font-body)', fontWeight: 600 }}>
-              Kaur&apos;s Cakery • Order Register
-            </p>
-            <h2 style={{ margin: 0, fontSize: 20, fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--charcoal)' }}>
-              {orderToEdit ? '✏️ Edit Cake Order' : '🎂 New Cake Order'}
+            <h2 style={{ margin: 0, fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--charcoal)' }}>
+              {orderToEdit ? 'Edit Cake Order' : '🎂 New Cake Order'}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             style={{
-              width: 34,
-              height: 34,
+              width: 30,
+              height: 30,
               borderRadius: '50%',
-              border: '1px solid rgba(151, 145, 190, 0.3)',
-              background: 'rgba(255, 255, 255, 0.6)',
+              border: 'none',
+              background: 'rgba(151, 145, 190, 0.15)',
               color: 'var(--warm-gray)',
-              fontSize: 16,
+              fontSize: 15,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -249,354 +218,272 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', flex: 1, padding: '16px 20px', gap: 18 }}>
-          {/* Section 1: Customer Details */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--light-warm)', marginBottom: 6 }}>
-              👤 Customer Info
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', flex: 1, padding: '14px 18px', gap: 14 }}>
+          {/* Group 1: Customer & Timing */}
+          <div style={{ background: 'rgba(255, 255, 255, 0.7)', borderRadius: 16, padding: '12px 14px', border: '1px solid rgba(235, 230, 245, 0.9)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              type="text"
+              required
+              placeholder="Customer Name *"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className="input-field"
+              style={{ fontSize: 14, paddingTop: 9, paddingBottom: 9 }}
+            />
+
+            <input
+              type="tel"
+              placeholder="WhatsApp Number (optional)"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              className="input-field"
+              style={{ fontSize: 14, paddingTop: 9, paddingBottom: 9 }}
+            />
+
+            {/* Date & Time Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 8 }}>
               <div>
+                <label style={{ fontSize: 11, color: 'var(--warm-gray)', display: 'block', marginBottom: 3 }}>Due Date *</label>
                 <input
-                  type="text"
+                  type="date"
                   required
-                  placeholder="Customer Name (e.g. Priya Sharma)"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
                   className="input-field"
-                  style={{ fontSize: 14 }}
+                  style={{ fontSize: 13, paddingTop: 8, paddingBottom: 8 }}
                 />
               </div>
               <div>
+                <label style={{ fontSize: 11, color: 'var(--warm-gray)', display: 'block', marginBottom: 3 }}>Time</label>
                 <input
-                  type="tel"
-                  placeholder="WhatsApp Number (e.g. 9876543210)"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  type="time"
+                  value={deliveryTime}
+                  onChange={(e) => setDeliveryTime(e.target.value)}
                   className="input-field"
-                  style={{ fontSize: 14 }}
+                  style={{ fontSize: 13, paddingTop: 8, paddingBottom: 8 }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Section 2: Delivery Date & Time */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--light-warm)', marginBottom: 6 }}>
-              📅 Pickup / Delivery Date & Time
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+          {/* Group 2: Cake Details & Reference Photo */}
+          <div style={{ background: 'rgba(255, 255, 255, 0.7)', borderRadius: 16, padding: '12px 14px', border: '1px solid rgba(235, 230, 245, 0.9)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Flavor */}
+            <div>
               <input
-                type="date"
-                required
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
+                type="text"
+                placeholder="Cake Flavor (e.g. Belgian Truffle)"
+                value={flavor}
+                onChange={(e) => setFlavor(e.target.value)}
                 className="input-field"
-                style={{ fontSize: 14 }}
+                style={{ fontSize: 14, paddingTop: 9, paddingBottom: 9, marginBottom: 6 }}
               />
-              <input
-                type="time"
-                value={deliveryTime}
-                onChange={(e) => setDeliveryTime(e.target.value)}
-                className="input-field"
-                style={{ fontSize: 14 }}
-              />
+              <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2, scrollbarWidth: 'none' }}>
+                {QUICK_FLAVORS.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setFlavor(f)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 10,
+                      fontSize: 11,
+                      whiteSpace: 'nowrap',
+                      border: 'none',
+                      background: flavor === f ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)' : 'rgba(151, 145, 190, 0.12)',
+                      color: flavor === f ? 'white' : 'var(--warm-gray)',
+                      cursor: 'pointer',
+                      fontWeight: flavor === f ? 600 : 400,
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Section 3: Cake Details */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--light-warm)', marginBottom: 6 }}>
-              🍰 Cake Details
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Flavor input + quick chips */}
-              <div>
+            {/* Weight Chips */}
+            <div>
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                {WEIGHT_PRESETS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => setWeight(w)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 10,
+                      fontSize: 11.5,
+                      border: 'none',
+                      background: weight === w ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)' : 'rgba(151, 145, 190, 0.12)',
+                      color: weight === w ? 'white' : 'var(--warm-gray)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
+              {weight === 'Custom' && (
                 <input
                   type="text"
-                  placeholder="Flavor (e.g. Belgian Chocolate Truffle)"
-                  value={flavor}
-                  onChange={(e) => setFlavor(e.target.value)}
+                  placeholder="Custom size (e.g. 2.5 kg, 2-tier)"
+                  value={customWeight}
+                  onChange={(e) => setCustomWeight(e.target.value)}
                   className="input-field"
-                  style={{ fontSize: 14, marginBottom: 8 }}
+                  style={{ fontSize: 13, marginTop: 6, paddingTop: 7, paddingBottom: 7 }}
                 />
-                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-                  {COMMON_FLAVORS.map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setFlavor(f)}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: 12,
-                        fontSize: 11,
-                        whiteSpace: 'nowrap',
-                        border: flavor === f ? 'none' : '1px solid rgba(151, 145, 190, 0.3)',
-                        background: flavor === f ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)' : 'rgba(255,255,255,0.7)',
-                        color: flavor === f ? 'white' : 'var(--warm-gray)',
-                        cursor: 'pointer',
-                        fontWeight: flavor === f ? 600 : 400,
-                      }}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )}
+            </div>
 
-              {/* Weight Selector */}
-              <div>
-                <span style={{ fontSize: 12, color: 'var(--warm-gray)', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                  Weight / Size:
-                </span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                  {WEIGHT_PRESETS.map((w) => (
+            {/* Message on cake */}
+            <input
+              type="text"
+              placeholder="Message on cake (e.g. Happy Birthday!)"
+              value={cakeMessage}
+              onChange={(e) => setCakeMessage(e.target.value)}
+              className="input-field"
+              style={{ fontSize: 13, paddingTop: 8, paddingBottom: 8 }}
+            />
+
+            {/* Photo Attachment Bar */}
+            <div>
+              {referencePhoto ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 6, background: 'rgba(151, 145, 190, 0.08)', borderRadius: 12 }}>
+                  <img src={referencePhoto} alt="Ref preview" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }} />
+                  <span style={{ fontSize: 12, color: 'var(--charcoal)', flex: 1, fontWeight: 500 }}>Photo attached</span>
+                  <button
+                    type="button"
+                    onClick={() => setReferencePhoto(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#d63031',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                    }}
+                  >
+                    ✕ Remove
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(151, 145, 190, 0.08)', borderRadius: 12 }}>
+                  <span style={{ fontSize: 12, color: 'var(--warm-gray)' }}>
+                    {optimizing ? 'Processing photo…' : 'Attach cake photo:'}
+                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
                     <button
-                      key={w}
                       type="button"
-                      onClick={() => setWeight(w)}
+                      onClick={() => cameraInputRef.current?.click()}
                       style={{
-                        padding: '6px 12px',
-                        borderRadius: 12,
-                        fontSize: 12,
-                        border: weight === w ? 'none' : '1px solid rgba(151, 145, 190, 0.3)',
-                        background: weight === w ? 'linear-gradient(135deg, #ff8fdc, #9d7cff)' : 'rgba(255,255,255,0.7)',
-                        color: weight === w ? 'white' : 'var(--warm-gray)',
+                        padding: '4px 9px',
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                        color: 'white',
+                        border: 'none',
+                        fontSize: 11.5,
                         fontWeight: 600,
                         cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
                       }}
                     >
-                      {w}
+                      <span>📸</span> Camera
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      style={{
+                        padding: '4px 9px',
+                        borderRadius: 8,
+                        background: 'white',
+                        border: '1px solid rgba(151, 145, 190, 0.3)',
+                        color: 'var(--charcoal)',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                      }}
+                    >
+                      <span>🖼️</span> Gallery
+                    </button>
+                  </div>
                 </div>
-                {weight === 'Custom' && (
-                  <input
-                    type="text"
-                    placeholder="Enter custom size (e.g. 2.5 kg, 2-tier 3 kg)"
-                    value={customWeight}
-                    onChange={(e) => setCustomWeight(e.target.value)}
-                    className="input-field"
-                    style={{ fontSize: 13 }}
-                  />
-                )}
-              </div>
-
-              {/* Cake Message */}
-              <div>
-                <input
-                  type="text"
-                  placeholder="Message on Cake (e.g. Happy 5th Birthday Kabir!)"
-                  value={cakeMessage}
-                  onChange={(e) => setCakeMessage(e.target.value)}
-                  className="input-field"
-                  style={{ fontSize: 14 }}
-                />
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Section 4: Reference Photo */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--light-warm)', marginBottom: 6 }}>
-              📸 Reference Photo (Design / WhatsApp screenshot)
-            </label>
-
-            {referencePhoto ? (
-              <div
-                style={{
-                  position: 'relative',
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                  border: '1px solid rgba(151, 145, 190, 0.3)',
-                  background: '#1a1829',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  maxHeight: 200,
-                }}
-              >
-                <img
-                  src={referencePhoto}
-                  alt="Reference cake design"
-                  style={{ width: '100%', maxHeight: 200, objectFit: 'contain' }}
-                />
-                <button
-                  type="button"
-                  onClick={handleRemovePhoto}
-                  style={{
-                    position: 'absolute',
-                    top: 10,
-                    right: 10,
-                    background: 'rgba(230, 60, 60, 0.85)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 12,
-                    padding: '6px 12px',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    backdropFilter: 'blur(4px)',
-                  }}
-                >
-                  ✕ Remove
-                </button>
-              </div>
-            ) : (
-              <div
-                style={{
-                  padding: '16px',
-                  borderRadius: 16,
-                  border: '2px dashed rgba(180, 149, 255, 0.45)',
-                  background: 'rgba(255, 255, 255, 0.45)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  textAlign: 'center',
-                }}
-              >
-                {optimizing ? (
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--rose)', fontWeight: 600 }}>
-                    Processing & optimizing photo…
-                  </p>
-                ) : (
-                  <>
-                    <p style={{ margin: 0, fontSize: 13, color: 'var(--warm-gray)' }}>
-                      Attach customer&apos;s cake design photo from gallery or camera
-                    </p>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button
-                        type="button"
-                        onClick={() => cameraInputRef.current?.click()}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: 12,
-                          background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
-                          color: 'white',
-                          border: 'none',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                        }}
-                      >
-                        <span>📸</span> Camera
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => galleryInputRef.current?.click()}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: 12,
-                          background: 'rgba(255, 255, 255, 0.85)',
-                          border: '1px solid rgba(151, 145, 190, 0.35)',
-                          color: 'var(--charcoal)',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                        }}
-                      >
-                        <span>🖼️</span> Gallery
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Section 5: Money & Payment */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--light-warm)', marginBottom: 6 }}>
-              💰 Payment (Auto-Calculates Balance)
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {/* Group 3: Payment & Notes */}
+          <div style={{ background: 'rgba(255, 255, 255, 0.7)', borderRadius: 16, padding: '12px 14px', border: '1px solid rgba(235, 230, 245, 0.9)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <div>
-                <span style={{ fontSize: 11, color: 'var(--warm-gray)', display: 'block', marginBottom: 2 }}>Total Price (₹)</span>
+                <label style={{ fontSize: 11, color: 'var(--warm-gray)', display: 'block', marginBottom: 3 }}>Total Price (₹)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 1200"
+                  placeholder="0"
                   value={totalPrice}
                   onChange={(e) => setTotalPrice(e.target.value)}
                   className="input-field"
-                  style={{ fontSize: 15, fontWeight: 600 }}
+                  style={{ fontSize: 14, fontWeight: 600, paddingTop: 8, paddingBottom: 8 }}
                 />
               </div>
               <div>
-                <span style={{ fontSize: 11, color: 'var(--warm-gray)', display: 'block', marginBottom: 2 }}>Advance Paid (₹)</span>
+                <label style={{ fontSize: 11, color: 'var(--warm-gray)', display: 'block', marginBottom: 3 }}>Advance Paid (₹)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 400"
+                  placeholder="0"
                   value={advancePaid}
                   onChange={(e) => setAdvancePaid(e.target.value)}
                   className="input-field"
-                  style={{ fontSize: 15, fontWeight: 600 }}
+                  style={{ fontSize: 14, fontWeight: 600, paddingTop: 8, paddingBottom: 8 }}
                 />
               </div>
             </div>
 
-            {/* Live Balance Strip */}
-            <div
-              style={{
-                marginTop: 8,
-                padding: '8px 12px',
-                borderRadius: 12,
-                background: balanceDue > 0 ? 'rgba(255, 175, 175, 0.22)' : 'rgba(120, 210, 140, 0.22)',
-                border: balanceDue > 0 ? '1px solid rgba(220, 80, 80, 0.25)' : '1px solid rgba(80, 180, 100, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-            >
-              <span style={{ color: 'var(--charcoal)' }}>Remaining Balance Due:</span>
-              <span style={{ color: balanceDue > 0 ? '#b83232' : '#22823b', fontSize: 15 }}>
-                {balanceDue > 0 ? `₹${balanceDue.toLocaleString()}` : '✅ Fully Paid'}
+            {/* Inline live balance text */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, paddingTop: 2 }}>
+              <span style={{ color: 'var(--warm-gray)' }}>Balance due:</span>
+              <span style={{ fontWeight: 700, color: balanceDue > 0 ? '#d63031' : '#27ae60' }}>
+                {balanceDue > 0 ? `₹${balanceDue.toLocaleString()}` : (totalNum > 0 ? 'Paid in Full ✅' : '₹0')}
               </span>
             </div>
-          </div>
 
-          {/* Section 6: Special Notes */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--light-warm)', marginBottom: 6 }}>
-              📝 Special Requests & Notes (Optional)
-            </label>
-            <textarea
-              rows={2}
-              placeholder="e.g. 100% Eggless, less sweet, customer will bring their own topper, pack knife & candle"
+            {/* Special notes */}
+            <input
+              type="text"
+              placeholder="Notes (e.g. eggless, candle & knife)"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="input-field"
-              style={{ fontSize: 13 }}
+              style={{ fontSize: 12.5, paddingTop: 7, paddingBottom: 7 }}
             />
           </div>
 
           {error && (
-            <div style={{ padding: '10px 14px', borderRadius: 12, background: 'rgba(255, 237, 237, 0.8)', border: '1px solid rgba(224, 90, 58, 0.3)', color: '#c24a2d', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(255, 237, 237, 0.85)', color: '#c24a2d', fontSize: 12 }}>
               {error}
             </div>
           )}
 
-          {/* Modal Footer */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 6, paddingTop: 12, borderTop: '1px solid rgba(151, 145, 190, 0.2)' }}>
+          {/* Submit Button */}
+          <div style={{ display: 'flex', gap: 8, paddingTop: 4, paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}>
             <button
               type="button"
               onClick={onClose}
               style={{
                 flex: 1,
-                padding: '13px 16px',
+                padding: '12px 14px',
                 borderRadius: 14,
-                border: '1px solid rgba(151, 145, 190, 0.3)',
+                border: '1px solid rgba(151, 145, 190, 0.25)',
                 background: 'rgba(255, 255, 255, 0.7)',
                 color: 'var(--warm-gray)',
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
@@ -608,19 +495,19 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
               disabled={saving || optimizing}
               style={{
                 flex: 2,
-                padding: '13px 16px',
+                padding: '12px 14px',
                 borderRadius: 14,
                 border: 'none',
                 background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
                 color: 'white',
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: 600,
                 cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(142, 106, 232, 0.3)',
+                boxShadow: '0 6px 20px rgba(142, 106, 232, 0.28)',
                 opacity: saving || optimizing ? 0.7 : 1,
               }}
             >
-              {saving ? 'Saving…' : (orderToEdit ? 'Save Changes' : '🎂 Register Order')}
+              {saving ? 'Saving…' : (orderToEdit ? 'Save Changes' : '🎂 Save Order')}
             </button>
           </div>
         </form>
@@ -629,4 +516,3 @@ export default function AddOrderModal({ isOpen, onClose, orderToEdit = null }) {
     document.body
   )
 }
-
