@@ -225,22 +225,30 @@ export default function TimerPage() {
           background: 'linear-gradient(180deg, rgba(250,248,255,0.95) 75%, rgba(250,248,255,0) 100%)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{ margin: 0, fontSize: 11, fontFamily: 'var(--font-body)', color: 'var(--rose)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
               Kaur&apos;s Cakery
             </p>
-            <h1 style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 29, fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+            <h1 style={{
+              margin: '2px 0 0',
+              fontFamily: 'var(--font-display)',
+              fontSize: 'clamp(20px, 5.2vw, 26px)',
+              fontWeight: 700,
+              color: 'var(--charcoal)',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.15,
+            }}>
               Bakery Oven Timer
             </h1>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => setShowCustomModal(true)}
               style={{
-                padding: '7px 13px',
+                padding: '8px 14px',
                 borderRadius: 14,
                 border: 'none',
                 background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
@@ -251,8 +259,9 @@ export default function TimerPage() {
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4,
+                gap: 5,
                 boxShadow: '0 4px 14px rgba(142, 106, 232, 0.28)',
+                whiteSpace: 'nowrap',
               }}
             >
               <span>➕</span> Custom
