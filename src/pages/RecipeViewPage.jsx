@@ -42,8 +42,13 @@ export default function RecipeViewPage() {
     return () => window.clearTimeout(timeoutId)
   }, [exportMessage])
 
+  useEffect(() => {
+    if (!recipe) {
+      setPage('library')
+    }
+  }, [recipe, setPage])
+
   if (!recipe) {
-    setPage('library')
     return null
   }
 
@@ -464,10 +469,6 @@ export default function RecipeViewPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {showExportMenu && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowExportMenu(false)} />
       )}
 
       <RecipeAiButton
