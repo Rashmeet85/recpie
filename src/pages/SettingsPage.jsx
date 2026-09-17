@@ -1,687 +1,157 @@
-import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useStore } from '../store/useStore'
-import { createRecipesPDFBlob, createRecipesPDFPreviewImages, exportToPDF, exportToDocx, recipesPdfFilename } from '../utils/export'
-import ExportToast from '../components/ExportToast'
+import React, { useState, useEffect } from 'react';
+import { getSetting, setSetting, getPendingOutbox, getAllStudents } from '../lib/db';
+import { testSheetConnection, syncToGoogleSheets } from '../lib/googleSheetService';
+import { useAuth } from '../context/AuthContext';
+import { Shield, Link, Database, Check, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function SettingsPage() {
-  const {
-    recipes,
-    deleteRecipe,
-    user,
-    userRole,
-    isOwner,
-    isCoOwner,
-    isAdmin,
-    canManageRoles,
-    canAssignCoOwner,
-    roleEntries,
-    signOutUser,
-    authError,
-    setUserRole,
-    revokeUserRole,
-    canInstallApp,
-    isInstalled,
-    installApp,
-  } = useStore()
-
-  const [exporting, setExporting] = useState(null)
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
-  const [roleEmail, setRoleEmail] = useState('')
-  const [roleValue, setRoleValue] = useState('admin')
-  const [savingRole, setSavingRole] = useState(false)
-  const [selectedRecipeIds, setSelectedRecipeIds] = useState([])
-  const [exportMessage, setExportMessage] = useState('')
-  const [showCustomPdfOptions, setShowCustomPdfOptions] = useState(false)
-  const [pdfPreview, setPdfPreview] = useState(null)
+  const { userProfile, role, isSuperAdmin } = useAuth();
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [totalStudents, setTotalStudents] = useState(0);
 
   useEffect(() => {
-    setSelectedRecipeIds((currentIds) => {
-      const availableIds = new Set(recipes.map((recipe) => recipe.id))
-      return currentIds.filter((id) => availableIds.has(id))
-    })
-  }, [recipes])
+    async function load() {
+      const url = await getSetting('googleSheetWebhookUrl', '');
+      const secret = await getSetting('apiSecretToken', 'IOC_USAARI_SECURE_2026');
+      setWebhookUrl(url);
+      setApiSecret(secret);
 
-  useEffect(() => {
-    if (!exportMessage) return undefined
+      const outbox = await getPendingOutbox();
+      setPendingCount(outbox.length);
 
-    const timeoutId = window.setTimeout(() => {
-      setExportMessage('')
-    }, 5000)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [exportMessage])
-
-  useEffect(() => () => {
-    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url)
-  }, [pdfPreview])
-
-  const selectedRecipes = recipes.filter((recipe) => selectedRecipeIds.includes(recipe.id))
-  const selectedRecipeCount = selectedRecipes.length
-  const allRecipesSelected = recipes.length > 0 && selectedRecipeCount === recipes.length
-
-  const showExportMessage = (message) => {
-    window.setTimeout(() => {
-      setExportMessage(message)
-    }, 0)
-  }
-
-  const handleExport = async (type) => {
-    setExporting(type)
-    setExportMessage('')
-
-    try {
-      if (type === 'pdf') await exportToPDF(recipes)
-      else if (type === 'docx') await exportToDocx(recipes)
-      else if (type === 'custom-docx') await exportToDocx(selectedRecipes)
-      showExportMessage('Your export has been downloaded to this device.')
-    } catch (error) {
-      console.error(error)
-      showExportMessage('Something went wrong. Please try exporting again.')
-    } finally {
-      setExporting(null)
+      const studs = await getAllStudents();
+      setTotalStudents(studs.length);
     }
-  }
+    load();
+  }, []);
 
-  const handlePrepareCustomPDF = async (includeCover) => {
-    const type = includeCover ? 'custom-pdf-cover' : 'custom-pdf-recipes'
-    setExporting(type)
-    setExportMessage('')
+  const handleSaveSettings = async () => {
+    await setSetting('googleSheetWebhookUrl', webhookUrl);
+    await setSetting('apiSecretToken', apiSecret);
+    alert('Settings saved successfully!');
+  };
 
-    try {
-      const [blob, pageImages] = await Promise.all([
-        createRecipesPDFBlob(selectedRecipes, { includeCover }),
-        createRecipesPDFPreviewImages(selectedRecipes, { includeCover }),
-      ])
-      const url = URL.createObjectURL(blob)
-      const filename = recipesPdfFilename()
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    const ok = await testSheetConnection(webhookUrl, apiSecret);
+    setIsTesting(false);
+    setTestResult(ok ? 'Connected! Google Sheet responded successfully.' : 'Failed to connect. Verify your Webhook URL.');
+  };
 
-      setPdfPreview((currentPreview) => {
-        if (currentPreview?.url) URL.revokeObjectURL(currentPreview.url)
-        return {
-          blob,
-          url,
-          filename,
-          includeCover,
-          pageImages,
-        }
-      })
-      setShowCustomPdfOptions(false)
-    } catch (error) {
-      console.error(error)
-      showExportMessage('Something went wrong. Please try exporting again.')
-    } finally {
-      setExporting(null)
-    }
-  }
-
-  const closePdfPreview = () => {
-    setPdfPreview((currentPreview) => {
-      if (currentPreview?.url) URL.revokeObjectURL(currentPreview.url)
-      return null
-    })
-  }
-
-  const downloadPdfPreview = () => {
-    if (!pdfPreview) return
-
-    const anchor = document.createElement('a')
-    anchor.href = pdfPreview.url
-    anchor.download = pdfPreview.filename
-    anchor.click()
-    showExportMessage('Your PDF has been downloaded to this device.')
-  }
-
-  const sharePdfPreview = async () => {
-    if (!pdfPreview) return
-
-    try {
-      const file = new File([pdfPreview.blob], pdfPreview.filename, { type: 'application/pdf' })
-      if (!navigator.canShare?.({ files: [file] })) {
-        showExportMessage('PDF sharing is not supported in this browser. Please download and share it from WhatsApp.')
-        return
-      }
-
-      await navigator.share({
-        files: [file],
-        title: "Kaur's Cakery Recipes",
-        text: "Kaur's Cakery recipe PDF",
-      })
-    } catch (error) {
-      if (error?.name !== 'AbortError') {
-        console.error(error)
-        showExportMessage('Something went wrong. Please try sharing again.')
-      }
-    }
-  }
-
-  const toggleSelectedRecipe = (recipeId) => {
-    setSelectedRecipeIds((currentIds) => (
-      currentIds.includes(recipeId)
-        ? currentIds.filter((id) => id !== recipeId)
-        : [...currentIds, recipeId]
-    ))
-  }
-
-  const selectAllRecipes = () => {
-    setSelectedRecipeIds(recipes.map((recipe) => recipe.id))
-  }
-
-  const clearSelectedRecipes = () => {
-    setSelectedRecipeIds([])
-  }
-
-  const handleExportJSON = () => {
-    setExportMessage('')
-    const data = JSON.stringify(recipes, null, 2)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `kaurscakery_recipes_${new Date().toISOString().slice(0, 10)}.json`
-    anchor.click()
-    URL.revokeObjectURL(url)
-    showExportMessage('Your backup has been downloaded to this device.')
-  }
-
-  const handleImportJSON = (event) => {
-    const file = event.target.files?.[0]
-    if (!file || !isAdmin) return
-
-    const reader = new FileReader()
-    reader.onload = async (loadEvent) => {
-      try {
-        const imported = JSON.parse(loadEvent.target.result)
-
-        if (Array.isArray(imported)) {
-          const { addRecipe } = useStore.getState()
-          const existingIds = new Set(useStore.getState().recipes.map((recipe) => recipe.id))
-          let importedCount = 0
-
-          for (const recipe of imported) {
-            if (!existingIds.has(recipe.id)) {
-              await addRecipe(recipe)
-              importedCount += 1
-            }
-          }
-
-          alert(importedCount ? `Imported ${importedCount} recipes.` : 'No new recipes were imported.')
-        }
-      } catch {
-        alert('Invalid file format')
-      }
-    }
-
-    reader.readAsText(file)
-    event.target.value = ''
-  }
-
-  const handleSaveRole = async () => {
-    if (!canManageRoles || !roleEmail.trim()) return
-
-    setSavingRole(true)
-    try {
-      await setUserRole(roleEmail, roleValue)
-      setRoleEmail('')
-    } finally {
-      setSavingRole(false)
-    }
-  }
-
-  const getEditableRoleOptions = (entryRole) => {
-    if (isOwner) return ['viewer', 'admin', 'coowner']
-    if (entryRole === 'coowner' || entryRole === 'owner') return []
-    return ['viewer', 'admin']
-  }
-
-  const roleSummary = isOwner
-    ? 'Owner access enabled. You can manage owners, user roles, recipes, AI features, imports, and deletes.'
-    : isCoOwner
-      ? 'Co-owner access enabled. You can manage admins, viewers, recipes, AI features, imports, and deletes.'
-      : isAdmin
-        ? 'Admin access enabled. You can create, edit, import, delete recipes, and use AI features.'
-      : 'Viewer access enabled. You can browse and export recipes. AI features are restricted.'
+  const handleForceRebuildSheet = async () => {
+    if (!confirm('This will synchronize all students and records to your Google Sheet master register. Proceed?')) return;
+    const studs = await getAllStudents();
+    await syncToGoogleSheets('sync_attendance_batch', { records: [] });
+    alert('Master Google Sheet synchronized!');
+  };
 
   return (
-    <div style={{ padding: '56px 20px 24px' }}>
-      <div className="animate-fade-up" style={{ opacity: 0, animationDelay: '0.02s' }}>
-        <p style={{ margin: '0 0 2px', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--light-warm)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500 }}>
-          Settings
-        </p>
-        <h1 style={{ margin: '0 0 28px', fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 600, color: 'var(--charcoal)', letterSpacing: '-0.02em' }}>
-          Your Cakery
-        </h1>
-      </div>
-
-      <GlassCard delay="0.06s">
-        <p style={{ margin: '0 0 6px', fontFamily: 'var(--font-body)', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--light-warm)', fontWeight: 600 }}>
-          Signed In As
-        </p>
-        <h2 style={{ margin: '0 0 6px', fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 600, color: 'var(--charcoal)' }}>
-          {user?.displayName || user?.email || 'Google User'}
-        </h2>
-        <p style={{ margin: '0 0 10px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--warm-gray)' }}>
-          {roleSummary}
-        </p>
-        <p style={{ margin: '0 0 14px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-          Current role: {userRole}
-        </p>
-        <button
-          onClick={signOutUser}
-          style={{ padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.6)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-        >
-          Sign Out
-        </button>
-        {authError && (
-          <p style={{ margin: '12px 0 0', fontFamily: 'var(--font-body)', fontSize: 12, color: '#c24a2d' }}>
-            {authError}
-          </p>
-        )}
-      </GlassCard>
-
-      <GlassCard delay="0.08s">
-        <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-          <StatItem value={recipes.length} label="Recipes" />
-          <div style={{ width: 1, background: 'rgba(201,169,110,0.18)' }} />
-          <StatItem value={[...new Set(recipes.map((recipe) => recipe.tag))].filter(Boolean).length} label="Categories" />
-          <div style={{ width: 1, background: 'rgba(201,169,110,0.18)' }} />
-          <StatItem value={recipes.reduce((sum, recipe) => sum + (recipe.ingredients?.length || 0), 0)} label="Ingredients" />
-        </div>
-      </GlassCard>
-
-      <SettingsSection title="Export Collection" icon="📥" delay="0.12s">
-        <SettingsButton onClick={() => handleExport('pdf')} loading={exporting === 'pdf'} icon="📄" label="Export all as PDF" sub={`${recipes.length} recipes -> styled PDF`} />
-        <SettingsButton onClick={() => handleExport('docx')} loading={exporting === 'docx'} icon="📝" label="Export all as Word" sub={`${recipes.length} recipes -> editable DOCX`} />
-        <div style={{ padding: 16, background: 'rgba(255,255,255,0.52)', borderRadius: 18, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)', marginBottom: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+    <div className="space-y-3.5 pb-24 text-xs">
+      {/* User Role Card */}
+      <div className="glass-card rounded-3xl p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-orange-500 text-white font-black flex items-center justify-center text-sm shadow-xs">
+              {userProfile?.initials || 'AD'}
+            </div>
             <div>
-              <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: 'var(--charcoal)' }}>
-                Custom export
-              </p>
-              <p style={{ margin: '3px 0 0', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)' }}>
-                {selectedRecipeCount} of {recipes.length} recipes selected
-              </p>
+              <h4 className="font-extrabold text-xs text-title">{userProfile?.displayName || 'User'}</h4>
+              <p className="text-[10px] text-muted font-mono">{userProfile?.email || 'admin@ioc.org'}</p>
             </div>
-            <button
-              onClick={allRecipesSelected ? clearSelectedRecipes : selectAllRecipes}
-              disabled={recipes.length === 0}
-              style={{ padding: '9px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.62)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: recipes.length === 0 ? 'default' : 'pointer', opacity: recipes.length === 0 ? 0.65 : 1 }}
-            >
-              {allRecipesSelected ? 'Clear' : 'Select All'}
-            </button>
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', paddingRight: 2, marginBottom: 12 }}>
-            {recipes.length === 0 ? (
-              <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--light-warm)' }}>
-                No recipes available to export.
-              </p>
-            ) : (
-              recipes.map((recipe) => {
-                const checked = selectedRecipeIds.includes(recipe.id)
-                return (
-                  <label
-                    key={recipe.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, background: checked ? 'rgba(244,114,208,0.1)' : 'rgba(255,255,255,0.46)', border: checked ? '1px solid rgba(244,114,208,0.24)' : '1px solid rgba(255,255,255,0.5)', cursor: 'pointer' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleSelectedRecipe(recipe.id)}
-                      style={{ width: 18, height: 18, accentColor: 'var(--rose)', flexShrink: 0 }}
-                    />
-                    <span style={{ fontSize: 20, lineHeight: 1 }}>{recipe.emoji || '🍴'}</span>
-                    <span style={{ minWidth: 0, flex: 1 }}>
-                      <span style={{ display: 'block', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {recipe.name}
-                      </span>
-                      <span style={{ display: 'block', fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--light-warm)' }}>
-                        {recipe.tag || 'Recipe'}
-                      </span>
-                    </span>
-                  </label>
-                )
-              })
-            )}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <button
-              onClick={() => setShowCustomPdfOptions(true)}
-              disabled={selectedRecipeCount === 0 || exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
-              style={{ padding: '12px 10px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: selectedRecipeCount === 0 || exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: selectedRecipeCount === 0 || exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.65 : 1 }}
-            >
-              {exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'Exporting...' : 'Selected PDF'}
-            </button>
-            <button
-              onClick={() => handleExport('custom-docx')}
-              disabled={selectedRecipeCount === 0 || exporting === 'custom-docx'}
-              style={{ padding: '12px 10px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.62)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: selectedRecipeCount === 0 || exporting === 'custom-docx' ? 'default' : 'pointer', opacity: selectedRecipeCount === 0 || exporting === 'custom-docx' ? 0.65 : 1 }}
-            >
-              {exporting === 'custom-docx' ? 'Exporting...' : 'Selected Word'}
-            </button>
-          </div>
+          <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30">
+            {userProfile?.badgeText || role}
+          </span>
         </div>
-        <SettingsButton onClick={handleExportJSON} icon="💾" label="Backup recipes" sub="Export as JSON for safekeeping" />
-      </SettingsSection>
+      </div>
 
-      <SettingsSection title="Install App" icon="📱" delay="0.16s">
-        <SettingsButton
-          onClick={installApp}
-          disabled={!canInstallApp || isInstalled}
-          icon="⬇️"
-          label={isInstalled ? 'App already installed' : 'Install this app'}
-          sub={isInstalled ? 'The PWA is already installed on this device.' : canInstallApp ? "Add Kaur's Cakery to your home screen." : 'Open this app in a supported browser and wait a moment for install to become available.'}
-        />
-      </SettingsSection>
+      {/* Google Sheets Master Mirror Configuration */}
+      <div className="glass-card rounded-3xl p-4 space-y-3">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+            Cloud Integration
+          </span>
+          <h4 className="text-sm font-extrabold text-title mt-0.5">Google Sheets Live Mirror</h4>
+          <p className="text-[10px] text-muted mt-0.5">
+            Connect your free Google Sheet to maintain real-time copies of all admissions and roll call logs.
+          </p>
+        </div>
 
-      {isAdmin && (
-        <SettingsSection title="Admin Tools" icon="🔐" delay="0.2s">
-          <label
-            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 18, cursor: 'pointer', background: 'rgba(255,255,255,0.52)', border: '1px solid rgba(255,255,255,0.58)', transition: 'background 0.2s', boxShadow: 'var(--shadow-soft)' }}
-            onMouseOver={(event) => { event.currentTarget.style.background = 'rgba(255,255,255,0.85)' }}
-            onMouseOut={(event) => { event.currentTarget.style.background = 'rgba(255,255,255,0.6)' }}
+        <div>
+          <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1">Apps Script Webhook URL</label>
+          <input
+            type="url"
+            value={webhookUrl}
+            onChange={(e) => setWebhookUrl(e.target.value)}
+            placeholder="https://script.google.com/macros/s/.../exec"
+            className="input-glass w-full px-3 py-2 rounded-xl text-xs font-mono focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1">API Secret Token</label>
+          <input
+            type="text"
+            value={apiSecret}
+            onChange={(e) => setApiSecret(e.target.value)}
+            className="input-glass w-full px-3 py-2 rounded-xl text-xs font-mono focus:outline-none"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            className="flex-1 py-2.5 rounded-xl btn-uniform font-bold text-xs flex items-center justify-center gap-1.5"
           >
-            <span style={{ fontSize: 22 }}>📁</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 500, color: 'var(--charcoal)' }}>Restore from backup</p>
-              <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)' }}>Import from a JSON backup file</p>
-            </div>
-            <input type="file" accept=".json" onChange={handleImportJSON} style={{ display: 'none' }} />
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--light-warm)" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
-          </label>
-
-          <SettingsButton onClick={() => setShowClearConfirm(true)} icon="🗑️" label="Clear all recipes" sub="Remove every recipe from Firebase and this device" />
-        </SettingsSection>
-      )}
-
-      {canManageRoles && (
-        <SettingsSection title="Access Control" icon="👑" delay={isAdmin ? '0.24s' : '0.2s'}>
-          <div style={{ padding: 18, background: 'rgba(255,255,255,0.52)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)' }}>
-            <p style={{ margin: '0 0 12px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--warm-gray)', lineHeight: 1.6 }}>
-              {canAssignCoOwner
-                ? 'Add or update a user by email. `coowner` can manage admins and viewers, `admin` can manage recipes and AI tools, and `viewer` can only browse and export (AI features restricted). Your owner role cannot be revoked here.'
-                : 'Add or update a user by email. You can assign `admin` and `viewer` roles. Co-owners cannot create more co-owners or owners.'}
-            </p>
-
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-              <input
-                className="input-field"
-                value={roleEmail}
-                onChange={(event) => setRoleEmail(event.target.value)}
-                placeholder="user@gmail.com"
-                style={{ flex: '1 1 220px' }}
-              />
-              <select
-                className="input-field"
-                value={roleValue}
-                onChange={(event) => setRoleValue(event.target.value)}
-                style={{ flex: '0 0 140px', appearance: 'none' }}
-              >
-                {canAssignCoOwner && <option value="coowner">Co-owner</option>}
-                <option value="admin">Admin</option>
-                <option value="viewer">Viewer</option>
-              </select>
-              <button
-                onClick={handleSaveRole}
-                disabled={savingRole || !roleEmail.trim()}
-                style={{
-                  padding: '13px 18px',
-                  borderRadius: 16,
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
-                  color: 'white',
-                  fontFamily: 'var(--font-body)',
-                  fontWeight: 600,
-                  cursor: savingRole || !roleEmail.trim() ? 'default' : 'pointer',
-                  opacity: savingRole || !roleEmail.trim() ? 0.7 : 1,
-                  boxShadow: '0 14px 30px rgba(142,106,232,0.2)',
-                }}
-              >
-                {savingRole ? 'Saving...' : 'Save Role'}
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {roleEntries.map((entry) => {
-                const canEdit = entry.role !== 'owner' && (isOwner || entry.role !== 'coowner')
-                const editableRoleOptions = getEditableRoleOptions(entry.role)
-                return (
-                  <div key={entry.email} style={{ display: 'flex', flexDirection: 'column', gap: 12, background: 'rgba(255,255,255,0.58)', border: '1px solid rgba(255,255,255,0.62)', borderRadius: 18, padding: '12px 14px' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: '0 0 4px', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--charcoal)', wordBreak: 'break-all' }}>{entry.email}</p>
-                      <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{entry.role}</p>
-                    </div>
-                    {canEdit ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <select
-                          className="input-field"
-                          value={entry.role}
-                          onChange={(event) => setUserRole(entry.email, event.target.value)}
-                          style={{ flex: '1 1 180px', minWidth: 160, padding: '10px 14px', appearance: 'none', background: 'rgba(255,255,255,0.7)' }}
-                        >
-                          {editableRoleOptions.map((roleOption) => (
-                            <option key={roleOption} value={roleOption}>
-                              {roleOption === 'coowner' ? 'Co-owner' : roleOption === 'admin' ? 'Admin' : 'Viewer'}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => revokeUserRole(entry.email)}
-                          style={{ padding: '10px 12px', borderRadius: 12, border: 'none', background: 'rgba(224,90,58,0.12)', color: '#c24a2d', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          Revoke
-                        </button>
-                      </div>
-                    ) : (
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, color: 'var(--rose)' }}>{entry.role === 'owner' ? 'Owner' : 'Co-owner'}</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </SettingsSection>
-      )}
-
-      <SettingsSection title="About" icon="🎂" delay={isOwner ? '0.28s' : isAdmin ? '0.24s' : '0.2s'}>
-        <div style={{ padding: '18px', background: 'rgba(255,255,255,0.52)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.58)', boxShadow: 'var(--shadow-soft)' }}>
-          <h3 style={{ margin: '0 0 4px', fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600 }}>Kaur&apos;s Cakery</h3>
-          <p style={{ margin: '0 0 12px', fontFamily: 'var(--font-body)', fontSize: 13, fontStyle: 'italic', color: 'var(--warm-gray)' }}>
-            Crafted with love, baked with passion
-          </p>
-          <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--light-warm)', lineHeight: 1.6 }}>
-            Recipes and roles are backed by Firebase so they stay available across devices and after local storage is cleared.
-          </p>
+            <Check className="w-3.5 h-3.5" /> Save Configuration
+          </button>
+          <button
+            type="button"
+            onClick={handleTestConnection}
+            disabled={isTesting || !webhookUrl}
+            className="flex-1 py-2.5 rounded-xl glass-card border border-slate-200 dark:border-white/10 font-bold text-xs text-title flex items-center justify-center gap-1.5 hover:bg-slate-100 dark:hover:bg-white/5"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
+            {isTesting ? 'Pinging...' : 'Test Connection'}
+          </button>
         </div>
-      </SettingsSection>
 
-      {showClearConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(33,24,67,0.34)', backdropFilter: 'blur(4px)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowClearConfirm(false)}>
-          <div onClick={(event) => event.stopPropagation()} style={{ background: 'rgba(248,246,255,0.88)', backdropFilter: 'blur(20px)', borderRadius: '28px 28px 0 0', padding: '24px 20px 48px', width: '100%' }}>
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(176,158,150,0.4)', margin: '0 auto 20px' }} />
-            <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-display)', fontSize: 22 }}>Clear all data?</h3>
-            <p style={{ margin: '0 0 24px', fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--warm-gray)' }}>
-              This will permanently remove all {recipes.length} recipes from Firebase and this device.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <button
-                onClick={async () => {
-                  for (const recipe of [...recipes]) await deleteRecipe(recipe.id)
-                  setShowClearConfirm(false)
-                }}
-                style={{ padding: '15px', borderRadius: 14, border: 'none', background: '#e05a3a', color: 'white', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Clear All Recipes
-              </button>
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                style={{ padding: '15px', borderRadius: 14, border: 'none', background: 'rgba(176,158,150,0.15)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 15, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCustomPdfOptions && typeof document !== 'undefined' && createPortal((
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(33,24,67,0.34)', backdropFilter: 'blur(4px)', zIndex: 9997, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflow: 'hidden' }} onClick={() => setShowCustomPdfOptions(false)}>
-          <div onClick={(event) => event.stopPropagation()} style={{ background: 'rgba(248,246,255,0.94)', backdropFilter: 'blur(20px)', borderRadius: 24, padding: '22px 18px', width: '100%', maxWidth: 420, boxShadow: '0 22px 60px rgba(33,24,67,0.2)', border: '1px solid rgba(255,255,255,0.58)' }}>
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(176,158,150,0.4)', margin: '0 auto 20px' }} />
-            <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--charcoal)' }}>Preview selected PDF</h3>
-            <p style={{ margin: '0 0 18px', fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--warm-gray)' }}>
-              Choose whether to include the first fixed cover page.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <button
-                onClick={() => handlePrepareCustomPDF(true)}
-                disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
-                style={{ padding: '15px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.7 : 1 }}
-              >
-                {exporting === 'custom-pdf-cover' ? 'Exporting...' : 'With first fixed page'}
-              </button>
-              <button
-                onClick={() => handlePrepareCustomPDF(false)}
-                disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
-                style={{ padding: '15px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.58)', background: 'rgba(255,255,255,0.66)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer', opacity: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 0.7 : 1 }}
-              >
-                {exporting === 'custom-pdf-recipes' ? 'Exporting...' : 'Without first fixed page'}
-              </button>
-              <button
-                onClick={() => setShowCustomPdfOptions(false)}
-                disabled={exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes'}
-                style={{ padding: '13px', borderRadius: 14, border: 'none', background: 'rgba(176,158,150,0.15)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 14, cursor: exporting === 'custom-pdf-cover' || exporting === 'custom-pdf-recipes' ? 'default' : 'pointer' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ), document.body)}
-
-      {pdfPreview && typeof document !== 'undefined' && createPortal((
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(33,24,67,0.38)', backdropFilter: 'blur(5px)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, overflow: 'hidden' }} onClick={closePdfPreview}>
-          <div onClick={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 920, height: 'min(86dvh, 760px)', maxHeight: 'calc(100dvh - 28px)', background: 'rgba(248,246,255,0.96)', border: '1px solid rgba(255,255,255,0.62)', borderRadius: 22, boxShadow: '0 26px 70px rgba(33,24,67,0.24)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 14px 12px', borderBottom: '1px solid rgba(169,127,255,0.16)' }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--charcoal)' }}>PDF preview</h3>
-                <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)' }}>
-                  {pdfPreview.includeCover ? 'Includes first fixed page' : 'Starts with selected recipes'}
-                </p>
-              </div>
-              <button
-                onClick={downloadPdfPreview}
-                style={{ padding: '10px 12px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)', color: 'white', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Download
-              </button>
-              <button
-                onClick={sharePdfPreview}
-                style={{ padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.62)', background: 'rgba(255,255,255,0.72)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Share
-              </button>
-              <button
-                onClick={closePdfPreview}
-                aria-label="Close PDF preview"
-                style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: 'rgba(176,158,150,0.15)', color: 'var(--warm-gray)', fontFamily: 'var(--font-body)', fontSize: 18, lineHeight: 1, cursor: 'pointer' }}
-              >
-                x
-              </button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', background: '#ece8f7', padding: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                {pdfPreview.pageImages.map((pageImage, index) => (
-                  <img
-                    key={`${pageImage.slice(0, 36)}-${index}`}
-                    src={pageImage}
-                    alt={`PDF preview page ${index + 1}`}
-                    style={{ width: 'min(100%, 720px)', height: 'auto', display: 'block', borderRadius: 10, boxShadow: '0 10px 28px rgba(33,24,67,0.16)', background: 'white' }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      ), document.body)}
-
-      {exportMessage && (
-        <ExportToast
-          message={exportMessage}
-          error={exportMessage.toLowerCase().includes('wrong')}
-        />
-      )}
-    </div>
-  )
-}
-
-function GlassCard({ delay, children }) {
-  return (
-    <div className="animate-fade-up" style={{ opacity: 0, animationDelay: delay, marginBottom: 24, background: 'linear-gradient(135deg, rgba(255,224,245,0.52), rgba(220,227,255,0.48))', border: '1px solid rgba(255,255,255,0.58)', borderRadius: 24, padding: 20, backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-soft)' }}>
-      {children}
-    </div>
-  )
-}
-
-function StatItem({ value, label }) {
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <p style={{ margin: '0 0 2px', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 600, color: 'var(--charcoal)' }}>{value}</p>
-      <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--warm-gray)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
-    </div>
-  )
-}
-
-function SettingsSection({ title, icon, delay, children }) {
-  return (
-    <div className="animate-fade-up" style={{ opacity: 0, animationDelay: delay, marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        <h3 style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--warm-gray)' }}>{title}</h3>
+        {testResult && (
+          <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 pt-1">{testResult}</p>
+        )}
       </div>
-      <div style={{ borderRadius: 18, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {children}
+
+      {/* Disaster Recovery & Diagnostics */}
+      <div className="glass-card rounded-3xl p-4 space-y-3">
+        <h4 className="font-extrabold text-xs text-title">Database Health & Recovery</h4>
+        
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="p-2.5 rounded-xl bg-slate-100/60 dark:bg-white/5 border border-slate-200/50 dark:border-white/5">
+            <span className="text-[9px] font-bold text-muted uppercase block">Local Students</span>
+            <p className="text-sm font-black text-title">{totalStudents}</p>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-100/60 dark:bg-white/5 border border-slate-200/50 dark:border-white/5">
+            <span className="text-[9px] font-bold text-muted uppercase block">Pending Outbox</span>
+            <p className="text-sm font-black text-title">{pendingCount}</p>
+          </div>
+        </div>
+
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={handleForceRebuildSheet}
+            className="w-full py-2.5 rounded-xl input-glass text-red-600 dark:text-red-400 font-bold text-xs hover:bg-red-50 dark:hover:bg-white/5 flex items-center justify-center gap-1.5 border border-red-500/20"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> 1-Click Rebuild Master Google Sheet
+          </button>
+        )}
       </div>
     </div>
-  )
-}
-
-function SettingsButton({ onClick, loading, disabled, icon, label, sub }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading || disabled}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        padding: '14px 16px',
-        borderRadius: 14,
-        cursor: loading || disabled ? 'default' : 'pointer',
-        width: '100%',
-        textAlign: 'left',
-        background: 'rgba(255,255,255,0.52)',
-        border: '1px solid rgba(255,255,255,0.58)',
-        transition: 'background 0.2s',
-        opacity: loading || disabled ? 0.7 : 1,
-        marginBottom: 2,
-        boxShadow: 'var(--shadow-soft)',
-      }}
-      onMouseOver={(event) => {
-        if (!loading && !disabled) event.currentTarget.style.background = 'rgba(255,255,255,0.85)'
-      }}
-      onMouseOut={(event) => { event.currentTarget.style.background = 'rgba(255,255,255,0.6)' }}
-    >
-      <span style={{ fontSize: 22 }}>{icon}</span>
-      <div style={{ flex: 1 }}>
-        <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 500, color: 'var(--charcoal)' }}>{label}</p>
-        <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--light-warm)' }}>{sub}</p>
-      </div>
-      {loading
-        ? <div style={{ width: 18, height: 18, border: '2px solid rgba(180,149,255,0.2)', borderTopColor: 'var(--rose)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--light-warm)" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
-      }
-    </button>
-  )
+  );
 }
