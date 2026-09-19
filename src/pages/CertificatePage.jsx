@@ -386,15 +386,14 @@ export default function CertificatePage() {
           {/* Scaled Landscape Box Container */}
           <div
             style={{
-              width: '100%',
-              height: 740 * previewScale,
+              width: Math.round(1024 * previewScale),
+              maxWidth: '100%',
+              height: Math.round(740 * previewScale),
               position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               borderRadius: 12,
               overflow: 'hidden',
               boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+              background: '#FAF7F2',
             }}
           >
             <div
@@ -402,9 +401,10 @@ export default function CertificatePage() {
                 width: 1024,
                 height: 740,
                 transform: `scale(${previewScale})`,
-                transformOrigin: 'top center',
+                transformOrigin: 'top left',
                 position: 'absolute',
                 top: 0,
+                left: 0,
               }}
             >
               <CertificateTemplate
