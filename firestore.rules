@@ -2,52 +2,78 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper: Verify user is logged in
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper: Check if user document exists and has admin role
-    function isSuperAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email.matches('.*admin.*') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
-      );
+    function isOwner() {
+      return isSignedIn() && request.auth.token.email == 'h.r17731785@gmail.com';
     }
 
-    // 1. Staff & User Profiles
-    match /users/{userId} {
+    function currentRole() {
+      return isOwner()
+        ? 'owner'
+        : get(/databases/$(database)/documents/roles/$(request.auth.token.email)).data.role;
+    }
+
+    function canManageRecipes() {
+      return isOwner() || currentRole() in ['coowner', 'admin'];
+    }
+
+    function canManageRoles() {
+      return isOwner() || currentRole() == 'coowner';
+    }
+
+    function incomingRole() {
+      return request.resource.data.role;
+    }
+
+    function existingRole(userEmail) {
+      return userEmail == 'h.r17731785@gmail.com'
+        ? 'owner'
+        : resource == null
+          ? null
+          : resource.data.role;
+    }
+
+    function isOwnRoleDoc(userEmail) {
+      return isSignedIn() && request.auth.token.email == userEmail;
+    }
+
+    function canWriteRole(userEmail) {
+      return isOwner()
+        || (
+          currentRole() == 'coowner'
+          && !isOwnRoleDoc(userEmail)
+          && existingRole(userEmail) != 'owner'
+          && existingRole(userEmail) != 'coowner'
+          && incomingRole() in ['admin', 'viewer']
+        );
+    }
+
+    function canDeleteRole(userEmail) {
+      return isOwner()
+        || (
+          currentRole() == 'coowner'
+          && !isOwnRoleDoc(userEmail)
+          && existingRole(userEmail) in ['admin', 'viewer']
+        );
+    }
+
+    match /recipes/{recipeId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow write: if isSignedIn() && canManageRecipes();
     }
 
-    // 2. Student Directory
-    // Authenticated staff can read student roster; Super Admins can register/edit/delete
-    match /students/{studentId} {
+    match /orders/{orderId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow write: if isSignedIn() && canManageRecipes();
     }
 
-    // 3. Attendance Records
-    // Authenticated staff can mark attendance; records are accessible to team
-    match /attendance_records/{recordId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
-    }
-
-    // 4. Audit & Sync Logs
-    match /audit_logs/{logId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if false; // Immutable audit log
-    }
-
-    // 5. System Counters (for atomic unique ID generation)
-    match /system_counters/{counterId} {
-      allow read, write: if isSignedIn();
+    match /roles/{userEmail} {
+      allow read: if isSignedIn() && (canManageRoles() || request.auth.token.email == userEmail);
+      allow create, update: if isSignedIn() && canWriteRole(userEmail);
+      allow delete: if isSignedIn() && canDeleteRole(userEmail);
     }
   }
 }

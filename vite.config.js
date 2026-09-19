@@ -57,14 +57,13 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'icons.svg'],
         manifest: {
-          name: "Project Usaari Evening School",
-          short_name: "Project Usaari",
-          description: "Executive Student Attendance & Registration PWA by Initiators of Change",
-          theme_color: '#0F172A',
-          background_color: '#080C14',
+          name: "Kaur's Cakery Recipe Book",
+          short_name: "Kaur's Cakery",
+          description: "A premium personal recipe book",
+          theme_color: '#f9f3ee',
+          background_color: '#f9f3ee',
           start_url: '/',
           display: 'standalone',
-          orientation: 'portrait',
           icons: [
             { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
           ]
