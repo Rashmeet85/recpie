@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useStore } from '../store/useStore'
 import { useTimerStore } from '../store/useTimerStore'
 
@@ -59,45 +61,58 @@ function SettingsIcon({ active }) {
 
 export default function BottomNav() {
   const { currentPage, setPage, isAdmin, getTodayPendingOrdersCount } = useStore()
+  const [showActionSheet, setShowActionSheet] = useState(false)
   const todayOrdersCount = getTodayPendingOrdersCount ? getTodayPendingOrdersCount() : 0
   const activeTimersCount = useTimerStore((s) => s.getActiveRunningCount ? s.getActiveRunningCount() : 0)
   const navItems = isAdmin ? NAV_ITEMS : NAV_ITEMS.filter(item => !item.isFab)
 
+  const handleFabClick = () => {
+    if (showActionSheet) {
+      setShowActionSheet(false)
+    } else if (currentPage === 'add' || currentPage === 'certificate') {
+      setPage('library')
+    } else {
+      setShowActionSheet(true)
+    }
+  }
+
   return (
-    <nav style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0,
-      paddingBottom: 'env(safe-area-inset-bottom)',
-      background: 'rgba(255,255,255,0.42)',
-      backdropFilter: 'blur(28px) saturate(1.5)',
-      WebkitBackdropFilter: 'blur(28px) saturate(1.5)',
-      borderTop: '1px solid rgba(255,255,255,0.5)',
-      boxShadow: '0 -12px 30px rgba(86, 61, 160, 0.08)',
-      zIndex: 100,
-      display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-      height: 64,
-    }} className="no-print">
-      {navItems.map(item => {
-        if (item.isFab) {
-          return (
-            <button
-              key={item.id}
-              onClick={() => setPage('add')}
-              style={{
-                width: 52, height: 52, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
-                border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white',
-                boxShadow: '0 12px 28px rgba(142, 106, 232, 0.34)',
-                transform: currentPage === 'add' ? 'rotate(45deg)' : 'rotate(0deg)',
-                transition: 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              <PlusIcon />
-            </button>
-          )
-        }
+    <>
+      <nav style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        background: 'rgba(255,255,255,0.42)',
+        backdropFilter: 'blur(28px) saturate(1.5)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.5)',
+        borderTop: '1px solid rgba(255,255,255,0.5)',
+        boxShadow: '0 -12px 30px rgba(86, 61, 160, 0.08)',
+        zIndex: 100,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+        height: 64,
+      }} className="no-print">
+        {navItems.map(item => {
+          if (item.isFab) {
+            const isRotated = showActionSheet || currentPage === 'add' || currentPage === 'certificate'
+            return (
+              <button
+                key={item.id}
+                onClick={handleFabClick}
+                style={{
+                  width: 52, height: 52, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'white',
+                  boxShadow: '0 12px 28px rgba(142, 106, 232, 0.34)',
+                  transform: isRotated ? 'rotate(45deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                <PlusIcon />
+              </button>
+            )
+          }
         const isActive = currentPage === item.id
         const Icon = item.icon
         return (
@@ -183,7 +198,166 @@ export default function BottomNav() {
             )}
           </button>
         )
-      })}
-    </nav>
+        })}
+      </nav>
+
+      {/* CREATE NEW ACTION SHEET MODAL */}
+      {showActionSheet && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(20, 14, 38, 0.55)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            padding: '0 16px calc(76px + env(safe-area-inset-bottom))',
+          }}
+          onClick={() => setShowActionSheet(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 380,
+              background: 'linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 246, 255, 0.95) 100%)',
+              backdropFilter: 'blur(30px)',
+              WebkitBackdropFilter: 'blur(30px)',
+              borderRadius: 24,
+              padding: '20px 18px',
+              border: '1px solid rgba(255, 255, 255, 0.9)',
+              boxShadow: '0 25px 60px -10px rgba(45, 25, 75, 0.35), 0 0 0 1px rgba(220, 205, 245, 0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 2 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--charcoal)', fontFamily: 'var(--font-display)' }}>
+                  Create New
+                </h3>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--warm-gray)' }}>
+                  Choose what you would like to create
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowActionSheet(false)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(151, 145, 190, 0.15)',
+                  color: 'var(--warm-gray)',
+                  fontSize: 16,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Option 1: Create Recipe */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowActionSheet(false)
+                setPage('add')
+              }}
+              style={{
+                width: '100%',
+                padding: '13px 15px',
+                borderRadius: 16,
+                border: '1px solid rgba(244, 114, 208, 0.3)',
+                background: 'rgba(255, 255, 255, 0.85)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                cursor: 'pointer',
+                textAlign: 'left',
+                boxShadow: '0 4px 14px rgba(244, 114, 208, 0.10)',
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(255, 143, 220, 0.25), rgba(244, 114, 208, 0.3))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 22,
+                }}
+              >
+                🎂
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--charcoal)' }}>
+                  Create Recipe
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--warm-gray)' }}>
+                  Add a new bake to your recipe library
+                </p>
+              </div>
+            </button>
+
+            {/* Option 2: Create Certificate */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowActionSheet(false)
+                setPage('certificate')
+              }}
+              style={{
+                width: '100%',
+                padding: '13px 15px',
+                borderRadius: 16,
+                border: '1px solid rgba(157, 124, 255, 0.35)',
+                background: 'rgba(255, 255, 255, 0.85)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                cursor: 'pointer',
+                textAlign: 'left',
+                boxShadow: '0 4px 14px rgba(157, 124, 255, 0.10)',
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(157, 124, 255, 0.25), rgba(180, 149, 255, 0.3))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 22,
+                }}
+              >
+                📜
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--charcoal)' }}>
+                  Create Certificate
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--warm-gray)' }}>
+                  Issue student course completion certificate
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }

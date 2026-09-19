@@ -7,6 +7,7 @@ import AddRecipePage from './pages/AddRecipePage'
 import RecipeViewPage from './pages/RecipeViewPage'
 import SettingsPage from './pages/SettingsPage'
 import TimerPage from './pages/TimerPage'
+import CertificatePage from './pages/CertificatePage'
 import { useTimerStore } from './store/useTimerStore'
 
 export default function App() {
@@ -149,6 +150,8 @@ export default function App() {
         return <div key="view" className="animate-fade-up" style={style}><RecipeViewPage /></div>
       case 'timer':
         return <div key="timer" className="animate-fade-up" style={style}><TimerPage /></div>
+      case 'certificate':
+        return <div key="certificate" className="animate-fade-up" style={style}><CertificatePage /></div>
       case 'settings':
         return <div key="settings" className="animate-fade-up" style={style}><SettingsPage /></div>
       default:

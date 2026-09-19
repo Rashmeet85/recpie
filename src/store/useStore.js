@@ -25,6 +25,36 @@ async function getLocalDB() {
   })
 }
 
+export const OFFICIAL_CERTIFICATE_TEMPLATE = {
+  id: 'official-kaurs',
+  name: "Official Kaur's Cakery",
+  isOfficial: true,
+  title: 'CERTIFICATE',
+  subtitle: 'OF SUCCESSFUL COMPLETION',
+  description: 'and has demonstrated dedication, creativity and skill in learning the art of cake icing and decoration.',
+  signatory: "FOUNDER\nKAUR'S CAKERY",
+  customTheme: {
+    primaryColor: '#3B131D',
+    nameColor: '#BF1E5B',
+    courseColor: '#931A42',
+    borderColor: '#C5A866',
+    secondaryBorderColor: '#DFC68C',
+    backgroundColor: '#FAF7F2',
+  },
+}
+
+function loadCertificateTemplates() {
+  if (typeof window === 'undefined') return [OFFICIAL_CERTIFICATE_TEMPLATE]
+  try {
+    const raw = localStorage.getItem('kaurs_certificate_templates')
+    if (!raw) return [OFFICIAL_CERTIFICATE_TEMPLATE]
+    const custom = JSON.parse(raw)
+    return [OFFICIAL_CERTIFICATE_TEMPLATE, ...(Array.isArray(custom) ? custom : [])]
+  } catch {
+    return [OFFICIAL_CERTIFICATE_TEMPLATE]
+  }
+}
+
 const SEED_RECIPES = [
   {
     id: 'seed-1',
@@ -668,6 +698,7 @@ export const useStore = create((set, get) => ({
   canManageRoles: false,
   canAssignCoOwner: false,
   roleEntries: [],
+  certificateTemplates: loadCertificateTemplates(),
   authError: '',
   installPromptEvent: null,
   canInstallApp: false,
@@ -1110,6 +1141,41 @@ export const useStore = create((set, get) => ({
       roleEntries,
       ...permissions,
     })
+  },
+
+  saveCertificateTemplate: (template) => {
+    const existing = get().certificateTemplates || []
+    const isNew = !template.id || template.id === 'official-kaurs'
+    const finalTemplate = {
+      ...template,
+      id: isNew ? `tmpl-${Date.now()}` : template.id,
+      isOfficial: false,
+    }
+
+    const updated = isNew
+      ? [...existing, finalTemplate]
+      : existing.map((t) => (t.id === finalTemplate.id ? finalTemplate : t))
+
+    set({ certificateTemplates: updated })
+    try {
+      const customOnly = updated.filter((t) => !t.isOfficial)
+      localStorage.setItem('kaurs_certificate_templates', JSON.stringify(customOnly))
+    } catch (e) {
+      console.warn('Could not persist template:', e)
+    }
+    return finalTemplate
+  },
+
+  deleteCertificateTemplate: (id) => {
+    if (id === 'official-kaurs') return
+    const updated = (get().certificateTemplates || []).filter((t) => t.id !== id)
+    set({ certificateTemplates: updated })
+    try {
+      const customOnly = updated.filter((t) => !t.isOfficial)
+      localStorage.setItem('kaurs_certificate_templates', JSON.stringify(customOnly))
+    } catch (e) {
+      console.warn('Could not persist template:', e)
+    }
   },
 }))
 

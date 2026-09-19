@@ -342,6 +342,50 @@ ${options.text ? `Pasted Recipe Content:\n${options.text}` : 'Analyze the attach
         },
       }
 
+    case 'enhanceCertificateDescription':
+      return {
+        prompt: `You are an expert culinary certificate writer for Kaur's Cakery. Write a concise, elegant, 1-2 sentence completion commendation for a student completing the course "${options?.course || 'Baking & Pastry'}".
+CRITICAL RULES:
+- Return JSON only.
+- Length: STRICTLY 15 to 30 words max.
+- Do NOT include student name or course name in the output; write only the commendation body sentence (e.g., "and has demonstrated dedication, creativity and skill in learning the art of cake icing and decoration.").
+- Tone: Formal, encouraging, culinary excellence.
+
+Draft input: ${options?.draft || ''}`,
+        schema: {
+          type: 'OBJECT',
+          properties: {
+            description: {
+              type: 'STRING',
+              description: 'A 15-30 word formal culinary certificate commendation.',
+            },
+          },
+          required: ['description'],
+        },
+      }
+
+    case 'suggestCertificateTheme':
+      return {
+        prompt: `You are a luxury graphic design colorist. Suggest a subtle, luxury pastel color palette for a certificate themed "${options?.theme || 'Classic'}".
+Return JSON only:
+- primaryColor (hex string for main title, e.g. "#3B131D")
+- nameColor (hex string for calligraphy name, e.g. "#BF1E5B")
+- courseColor (hex string for course title, e.g. "#931A42")
+- borderColor (hex string for gold/metallic border, e.g. "#C5A866")
+- secondaryBorderColor (hex string, e.g. "#DFC68C")`,
+        schema: {
+          type: 'OBJECT',
+          properties: {
+            primaryColor: { type: 'STRING' },
+            nameColor: { type: 'STRING' },
+            courseColor: { type: 'STRING' },
+            borderColor: { type: 'STRING' },
+            secondaryBorderColor: { type: 'STRING' },
+          },
+          required: ['primaryColor', 'nameColor', 'courseColor', 'borderColor'],
+        },
+      }
+
     default:
       throw new Error(`Unsupported AI action: ${action}`)
   }
@@ -353,7 +397,8 @@ export async function processAiAction({ action, recipe, options = {}, image = nu
     throw new Error('GEMINI_API_KEY is not configured on the server.')
   }
 
-  if (action !== 'importRecipe' && (!recipe || typeof recipe !== 'object')) {
+  const isCertificateAction = action === 'enhanceCertificateDescription' || action === 'suggestCertificateTheme'
+  if (action !== 'importRecipe' && !isCertificateAction && (!recipe || typeof recipe !== 'object')) {
     throw new Error('Invalid recipe payload provided.')
   }
 
