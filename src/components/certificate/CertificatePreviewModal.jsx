@@ -13,6 +13,7 @@ export default function CertificatePreviewModal({
   const [sharing, setSharing] = useState(false)
   const [zoomFit, setZoomFit] = useState(true)
   const certificateRef = useRef(null)
+  const exportRef = useRef(null)
   const previewAreaRef = useRef(null)
   const [previewScale, setPreviewScale] = useState(0.35)
 
@@ -33,7 +34,6 @@ export default function CertificatePreviewModal({
       }
     }
 
-    // Run after DOM paint
     const timer = setTimeout(computeScale, 50)
     window.addEventListener('resize', computeScale)
 
@@ -60,33 +60,41 @@ export default function CertificatePreviewModal({
     signatory = "FOUNDER\nKAUR'S CAKERY",
     title = 'CERTIFICATE',
     subtitle = 'OF SUCCESSFUL COMPLETION',
+    seal = 'none',
+    dividerStyle = 'heart',
     customTheme = {},
   } = certificateData
 
-  // Generate high-resolution canvas
+  // Generate high-resolution canvas strictly from the UNTRANSFORMED offscreen container
   const generateCanvas = async () => {
+    const targetNode = exportRef.current || certificateRef.current
+    if (!targetNode) throw new Error('Certificate target not found')
+
     if (document.fonts && document.fonts.ready) {
       await document.fonts.ready
     }
-    await new Promise((resolve) => setTimeout(resolve, 150))
+    // Allow brief settle for font and image decode
+    await new Promise((resolve) => setTimeout(resolve, 200))
 
-    return await html2canvas(certificateRef.current, {
-      scale: 3, // Crisp 300 DPI print fidelity
+    return await html2canvas(targetNode, {
+      scale: 2.5, // 2560 x 1850 px - ultra-sharp 300 DPI print quality
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#FAF7F2',
       logging: false,
+      width: 1024,
+      height: 740,
     })
   }
 
-  // Export as high-quality PDF
+  // Export as high-quality PDF with native Blob URL download
   const handleDownloadPdf = async () => {
-    if (!certificateRef.current || downloading || sharing) return
+    if (downloading || sharing) return
     setDownloading(true)
 
     try {
       const canvas = await generateCanvas()
-      const imgData = canvas.toDataURL('image/jpeg', 0.98)
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
       // A4 Landscape is 297mm x 210mm
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -98,10 +106,22 @@ export default function CertificatePreviewModal({
 
       const safeName = (name || 'Student').trim().replace(/[^a-zA-Z0-9_-]/g, '_')
       const safeCourse = (course || 'Course').trim().replace(/[^a-zA-Z0-9_-]/g, '_')
-      pdf.save(`Certificate_${safeName}_${safeCourse}.pdf`)
+      const fileName = `Certificate_${safeName}_${safeCourse}.pdf`
+
+      const pdfBlob = pdf.output('blob')
+      const blobUrl = URL.createObjectURL(pdfBlob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      setTimeout(() => {
+        document.body.removeChild(link)
+        URL.revokeObjectURL(blobUrl)
+      }, 1000)
     } catch (err) {
       console.error('Failed to generate PDF:', err)
-      alert('Could not export PDF. Please try again.')
+      alert('Could not export PDF. Please check your browser permissions.')
     } finally {
       setDownloading(false)
     }
@@ -109,7 +129,7 @@ export default function CertificatePreviewModal({
 
   // Share strictly the certificate file itself (no text) via WhatsApp / System Share
   const handleShareFileOnly = async () => {
-    if (!certificateRef.current || downloading || sharing) return
+    if (downloading || sharing) return
     setSharing(true)
 
     try {
@@ -117,20 +137,25 @@ export default function CertificatePreviewModal({
       const safeName = (name || 'Student').trim().replace(/[^a-zA-Z0-9_-]/g, '_')
       const safeCourse = (course || 'Course').trim().replace(/[^a-zA-Z0-9_-]/g, '_')
 
-      // 1. First attempt: Share as PDF File
-      const imgData = canvas.toDataURL('image/jpeg', 0.98)
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4',
-      })
-      pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210)
-      const pdfBlob = pdf.output('blob')
-      const pdfFile = new File([pdfBlob], `Certificate_${safeName}_${safeCourse}.pdf`, {
-        type: 'application/pdf',
-      })
+      // 1. Attempt PDF File share first (Android Chrome & modern iOS)
+      let pdfFile = null
+      try {
+        const imgData = canvas.toDataURL('image/jpeg', 0.95)
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+        })
+        pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210)
+        const pdfBlob = pdf.output('blob')
+        pdfFile = new File([pdfBlob], `Certificate_${safeName}_${safeCourse}.pdf`, {
+          type: 'application/pdf',
+        })
+      } catch (pdfErr) {
+        console.warn('PDF blob generation issue:', pdfErr)
+      }
 
-      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      if (pdfFile && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
           files: [pdfFile],
           // Strictly no text, no title as requested
@@ -138,8 +163,8 @@ export default function CertificatePreviewModal({
         return
       }
 
-      // 2. Second attempt: Share as PNG Image File (some mobile browsers prefer image share)
-      const imageBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+      // 2. Attempt PNG Image File share (Universal support on mobile WhatsApp)
+      const imageBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png', 0.95))
       const imageFile = new File([imageBlob], `Certificate_${safeName}_${safeCourse}.png`, {
         type: 'image/png',
       })
@@ -152,9 +177,18 @@ export default function CertificatePreviewModal({
         return
       }
 
-      // 3. Fallback for Desktop: download file directly so user can attach to WhatsApp
-      pdf.save(`Certificate_${safeName}_${safeCourse}.pdf`)
-      alert('Certificate file downloaded! You can now attach it directly in WhatsApp.')
+      // 3. Fallback: direct download so user can attach to WhatsApp
+      const blobUrl = URL.createObjectURL(imageBlob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `Certificate_${safeName}_${safeCourse}.png`
+      document.body.appendChild(link)
+      link.click()
+      setTimeout(() => {
+        document.body.removeChild(link)
+        URL.revokeObjectURL(blobUrl)
+      }, 1000)
+      alert('Certificate saved to downloads! You can now send it directly on WhatsApp.')
     } catch (err) {
       if (err.name !== 'AbortError') {
         console.error('File share failed:', err)
@@ -186,6 +220,35 @@ export default function CertificatePreviewModal({
       }}
       onClick={onClose}
     >
+      {/* HIDDEN OFFSCREEN UNTRANSFORMED CAPTURE TARGET (guarantees 100% reliable 1024x740 export) */}
+      <div
+        style={{
+          position: 'fixed',
+          left: -9999,
+          top: 0,
+          width: 1024,
+          height: 740,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+          opacity: 1,
+          zIndex: -1,
+        }}
+      >
+        <CertificateTemplate
+          innerRef={exportRef}
+          name={name}
+          course={course}
+          date={date}
+          description={description}
+          signatory={signatory}
+          title={title}
+          subtitle={subtitle}
+          seal={seal}
+          dividerStyle={dividerStyle}
+          customTheme={customTheme}
+        />
+      </div>
+
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -296,7 +359,7 @@ export default function CertificatePreviewModal({
               transition: 'width 0.2s ease, height 0.2s ease',
             }}
           >
-            {/* The real 1024x740 canvas scaled with origin top left */}
+            {/* Scaled display element for visual preview on phone */}
             <div
               style={{
                 width: targetWidth,
@@ -317,6 +380,8 @@ export default function CertificatePreviewModal({
                 signatory={signatory}
                 title={title}
                 subtitle={subtitle}
+                seal={seal}
+                dividerStyle={dividerStyle}
                 customTheme={customTheme}
               />
             </div>
@@ -357,7 +422,7 @@ export default function CertificatePreviewModal({
             </button>
           </div>
 
-          {/* Action Buttons: WhatsApp (File Only) and Download PDF */}
+          {/* Action Buttons: Share File (WhatsApp) and Download PDF */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* WhatsApp Share Button (Pure File Only, Zero Text) */}
             <button
@@ -384,7 +449,7 @@ export default function CertificatePreviewModal({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.699c.971.53 1.77.781 2.796.781 3.182 0 5.768-2.587 5.768-5.766 0-3.18-2.586-5.767-5.768-5.767zm0 10.551c-.888 0-1.636-.239-2.348-.661l-.168-.1-1.579.414.422-1.54-.109-.174c-.456-.724-.698-1.521-.698-2.344 0-2.639 2.148-4.786 2.787-4.786 2.639 0 4.787 2.147 4.787 4.786 0 2.639-2.148 4.786-4.787 4.786zm6.84-11.458C17.067 3.46 14.654 2.375 12.033 2.375c-5.32 0-9.65 4.33-9.65 9.651 0 1.7.444 3.36 1.288 4.823L2 22l5.305-1.391c1.408.767 2.994 1.172 4.613 1.172h.005c5.319 0 9.65-4.33 9.65-9.651 0-2.578-1.004-4.999-2.702-6.865z" />
               </svg>
-              <span>{sharing ? 'Sharing File...' : 'Share File'}</span>
+              <span>{sharing ? 'Preparing...' : 'Share File'}</span>
             </button>
 
             {/* Download PDF Button */}

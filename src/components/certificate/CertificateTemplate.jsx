@@ -1,5 +1,11 @@
 import React from 'react'
 import baseTemplateImg from '../../assets/certificate/certificate_base_template.png'
+import SealGoldRibbon from '../../assets/certificate/svg/seals/SealGoldRibbon'
+import SealLaurelCrest from '../../assets/certificate/svg/seals/SealLaurelCrest'
+import SealOfficialVerified from '../../assets/certificate/svg/seals/SealOfficialVerified'
+import HeartDivider from '../../assets/certificate/svg/motifs/HeartDivider'
+import FlourishDivider from '../../assets/certificate/svg/motifs/FlourishDivider'
+import BakersCrestDivider from '../../assets/certificate/svg/motifs/BakersCrestDivider'
 
 export default function CertificateTemplate({
   name = 'Parleen Kaur',
@@ -12,6 +18,8 @@ export default function CertificateTemplate({
   prefixText = 'This is to certify that',
   completionText = 'has successfully completed the',
   blessingText = 'We wish you all the very best for your future endeavours.',
+  seal = 'none', // 'none' | 'gold-ribbon' | 'laurel-crest' | 'verified-stamp'
+  dividerStyle = 'heart', // 'heart' | 'flourish' | 'bakers-crest' | 'line'
   customTheme = {},
   innerRef = null,
 }) {
@@ -33,10 +41,6 @@ export default function CertificateTemplate({
         width: 1024,
         height: 740,
         position: 'relative',
-        backgroundImage: `url(${baseTemplateImg})`,
-        backgroundSize: '100% 100%',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
         backgroundColor: '#FAF7F2',
         overflow: 'hidden',
         boxSizing: 'border-box',
@@ -45,6 +49,22 @@ export default function CertificateTemplate({
         userSelect: 'none',
       }}
     >
+      {/* Pristine Master Base Template Layer (Explicit <img> for 100% reliable canvas capture) */}
+      <img
+        src={baseTemplateImg}
+        alt="Certificate Template Background"
+        crossOrigin="anonymous"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: 1024,
+          height: 740,
+          objectFit: 'fill',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+
       {/* 1. Custom Title & Subtitle Override (if altered in template customizer) */}
       {(isCustomTitle || isCustomSubtitle) && (
         <div
@@ -175,15 +195,21 @@ export default function CertificateTemplate({
           {name || 'Student Name'}
         </div>
 
-        {/* Gold Underline under Student Name */}
-        <div
-          style={{
-            width: 380,
-            height: 1.5,
-            background: `linear-gradient(90deg, transparent, ${borderColor} 20%, ${borderColor} 80%, transparent)`,
-            margin: '6px 0 10px 0',
-          }}
-        />
+        {/* Underline or Divider below Student Name */}
+        <div style={{ margin: '4px 0 8px 0', display: 'flex', justifyContent: 'center' }}>
+          {dividerStyle === 'flourish' && <FlourishDivider width={260} color={borderColor} />}
+          {dividerStyle === 'bakers-crest' && <BakersCrestDivider width={260} color={borderColor} />}
+          {dividerStyle === 'heart' && <HeartDivider width={260} color={borderColor} />}
+          {dividerStyle === 'line' && (
+            <div
+              style={{
+                width: 380,
+                height: 1.5,
+                background: `linear-gradient(90deg, transparent, ${borderColor} 20%, ${borderColor} 80%, transparent)`,
+              }}
+            />
+          )}
+        </div>
 
         {/* "has successfully completed the" */}
         <p
@@ -262,39 +288,53 @@ export default function CertificateTemplate({
         </div>
       )}
 
-      {/* 4. Founder Signature Area (Left Side) */}
-      {signatory && (
+      {/* 4. Optional Prestige Embossed Gold Seal */}
+      {seal === 'gold-ribbon' && (
         <div
           style={{
             position: 'absolute',
-            left: 175,
-            top: 596,
-            width: 190,
-            height: 44,
-            zIndex: 6,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
+            left: 108,
+            top: 545,
+            zIndex: 7,
             pointerEvents: 'none',
           }}
         >
-          <span
-            style={{
-              fontFamily: "'Great Vibes', cursive",
-              fontSize: 32,
-              color: '#7B1838',
-              lineHeight: 1,
-              letterSpacing: '0.02em',
-              marginBottom: 4,
-            }}
-          >
-            Parleen Kaur
-          </span>
+          <SealGoldRibbon width={105} height={105} />
         </div>
       )}
 
-      {/* 5. Dynamic Date (Centered Directly Over the DATE Line at y=644) */}
+      {seal === 'laurel-crest' && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 112,
+            top: 550,
+            zIndex: 7,
+            pointerEvents: 'none',
+          }}
+        >
+          <SealLaurelCrest width={100} height={100} />
+        </div>
+      )}
+
+      {seal === 'verified-stamp' && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 112,
+            top: 550,
+            zIndex: 7,
+            pointerEvents: 'none',
+          }}
+        >
+          <SealOfficialVerified width={100} height={100} />
+        </div>
+      )}
+
+      {/* 5. Founder Signature Area: KEPT STRICTLY BLANK FOR REAL INK SIGNING */}
+      {/* No fake handwriting font. The underline remains clean and ready for ink. */}
+
+      {/* 6. Dynamic Date (Centered Directly Over the DATE Line at y=644) */}
       <div
         style={{
           position: 'absolute',

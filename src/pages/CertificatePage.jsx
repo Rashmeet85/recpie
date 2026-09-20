@@ -92,6 +92,20 @@ const COLOR_THEMES = [
   },
 ]
 
+const SEAL_OPTIONS = [
+  { id: 'none', label: 'None (Clean Master)', icon: '✨' },
+  { id: 'gold-ribbon', label: 'Gold Medal & Ribbon', icon: '🎖️' },
+  { id: 'laurel-crest', label: 'Royal Laurel Wreath', icon: '🌿' },
+  { id: 'verified-stamp', label: 'Official Kaur’s Seal', icon: '⭐' },
+]
+
+const DIVIDER_OPTIONS = [
+  { id: 'heart', label: 'Pink Heart & Gold Line', icon: '💖' },
+  { id: 'flourish', label: 'Calligraphic Flourish', icon: '⚜️' },
+  { id: 'bakers-crest', label: 'Baker’s Whisk & Pin', icon: '🥣' },
+  { id: 'line', label: 'Minimalist Gold Bar', icon: '➖' },
+]
+
 function getTodayFormattedDate() {
   const d = new Date()
   const day = String(d.getDate()).padStart(2, '0')
@@ -106,7 +120,6 @@ export default function CertificatePage() {
     certificateTemplates = [OFFICIAL_CERTIFICATE_TEMPLATE],
     saveCertificateTemplate,
     deleteCertificateTemplate,
-    isAdmin,
     canUseAi,
   } = useStore()
 
@@ -123,12 +136,26 @@ export default function CertificatePage() {
   const [certificateSubtitle, setCertificateSubtitle] = useState('OF SUCCESSFUL COMPLETION')
   const [activeTheme, setActiveTheme] = useState(OFFICIAL_CERTIFICATE_TEMPLATE.customTheme)
 
+  // Embellishments
+  const [selectedSeal, setSelectedSeal] = useState('none')
+  const [selectedDivider, setSelectedDivider] = useState('heart')
+
+  // Batch Students Mode (Local processing: 0 AI tokens)
+  const [isBatchMode, setIsBatchMode] = useState(false)
+  const [batchRawText, setBatchRawText] = useState('')
+  const [batchList, setBatchList] = useState([])
+  const [batchIndex, setBatchIndex] = useState(0)
+
+  // AI states
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSuccessMsg, setAiSuccessMsg] = useState('')
+  const [aiMagicianOpen, setAiMagicianOpen] = useState(false)
+  const [aiMagicianInput, setAiMagicianInput] = useState('')
+
   // Modals & UI states
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showCustomizeModal, setShowCustomizeModal] = useState(false)
   const [newTemplateName, setNewTemplateName] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiSuccessMsg, setAiSuccessMsg] = useState('')
   const [savedAlertMsg, setSavedAlertMsg] = useState('')
 
   // Live scale calculation for mobile viewport
@@ -139,8 +166,7 @@ export default function CertificatePage() {
     const updateScale = () => {
       if (previewBoxRef.current) {
         const containerWidth = previewBoxRef.current.clientWidth - 24
-        // Canvas is 1024px wide
-        const scale = Math.min(1, Math.max(0.28, containerWidth / 1024))
+        const scale = Math.min(1, Math.max(0.25, containerWidth / 1024))
         setPreviewScale(scale)
       }
     }
@@ -158,6 +184,8 @@ export default function CertificatePage() {
     setCertificateSubtitle(tmpl.subtitle || 'OF SUCCESSFUL COMPLETION')
     if (tmpl.description) setDescription(tmpl.description)
     if (tmpl.customTheme) setActiveTheme(tmpl.customTheme)
+    if (tmpl.seal) setSelectedSeal(tmpl.seal)
+    if (tmpl.dividerStyle) setSelectedDivider(tmpl.dividerStyle)
   }
 
   // Course preset chip selection
@@ -166,15 +194,61 @@ export default function CertificatePage() {
     setDescription(preset.defaultDesc)
   }
 
-  // Next Student batch action
+  // Next Student single action
   const handleNextStudent = () => {
+    if (isBatchMode && batchList.length > 0) {
+      if (batchIndex + 1 < batchList.length) {
+        const nextIdx = batchIndex + 1
+        setBatchIndex(nextIdx)
+        setStudentName(batchList[nextIdx])
+        setSavedAlertMsg(`Switched to student ${nextIdx + 1} of ${batchList.length}: ${batchList[nextIdx]}`)
+        setTimeout(() => setSavedAlertMsg(''), 2500)
+        return
+      }
+    }
     setStudentName('')
     setSavedAlertMsg('Ready for next student! Course & date kept.')
     setTimeout(() => setSavedAlertMsg(''), 3000)
   }
 
-  // Token-efficient AI polish
-  const handleAiPolishDescription = async () => {
+  // Batch Parser (100% Local, Zero AI tokens)
+  const handleLoadBatch = () => {
+    if (!batchRawText.trim()) return
+    const names = batchRawText
+      .split(/[\n,;]+/)
+      .map((s) => s.replace(/^\s*\d+[\.\)\-\:]\s*/, '').trim())
+      .filter((s) => s.length > 1)
+
+    if (names.length === 0) {
+      alert('No names found. Please paste names separated by commas or new lines.')
+      return
+    }
+
+    setBatchList(names)
+    setBatchIndex(0)
+    setStudentName(names[0])
+    setSavedAlertMsg(`Loaded ${names.length} students! Ready to export.`)
+    setTimeout(() => setSavedAlertMsg(''), 3000)
+  }
+
+  const handlePrevBatchStudent = () => {
+    if (batchIndex > 0) {
+      const prevIdx = batchIndex - 1
+      setBatchIndex(prevIdx)
+      setStudentName(batchList[prevIdx])
+    }
+  }
+
+  const handleNextBatchStudent = () => {
+    if (batchIndex + 1 < batchList.length) {
+      const nextIdx = batchIndex + 1
+      setBatchIndex(nextIdx)
+      setStudentName(batchList[nextIdx])
+    }
+  }
+
+  // Micro-Prompt AI Tone Polish (Constrained to ~35 tokens)
+  const handleAiTonePolish = async (tone = 'masterclass') => {
     if (!canUseAi || aiLoading) return
     setAiLoading(true)
     setAiSuccessMsg('')
@@ -188,22 +262,57 @@ export default function CertificatePage() {
           options: {
             course: courseName,
             draft: description,
+            tone,
           },
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('Could not enhance with AI')
-      }
-
+      if (!response.ok) throw new Error('Could not enhance with AI')
       const data = await response.json()
       if (data?.result?.description) {
         setDescription(data.result.description)
-        setAiSuccessMsg('✨ Polished by AI!')
+        setAiSuccessMsg(`✨ Wording updated (${tone})!`)
         setTimeout(() => setAiSuccessMsg(''), 3000)
       }
     } catch (err) {
-      console.warn('AI Certificate Polish Error:', err)
+      console.warn('AI Tone Error:', err)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // Micro-Prompt AI Magician (Draft to Full Certificate, ~50 tokens)
+  const handleRunAiMagician = async () => {
+    if (!canUseAi || aiLoading || !aiMagicianInput.trim()) return
+    setAiLoading(true)
+    setAiSuccessMsg('')
+
+    try {
+      const response = await fetch('/api/recipe-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'magicCertificate',
+          options: {
+            rawText: aiMagicianInput,
+          },
+        }),
+      })
+
+      if (!response.ok) throw new Error('Could not parse with AI')
+      const data = await response.json()
+      if (data?.result) {
+        if (data.result.course) setCourseName(data.result.course)
+        if (data.result.description) setDescription(data.result.description)
+        if (data.result.studentName) setStudentName(data.result.studentName)
+        setAiSuccessMsg('🪄 Certificate details generated!')
+        setAiMagicianOpen(false)
+        setAiMagicianInput('')
+        setTimeout(() => setAiSuccessMsg(''), 3500)
+      }
+    } catch (err) {
+      console.warn('AI Magician Error:', err)
+      alert('Could not generate from notes. Please verify internet connection.')
     } finally {
       setAiLoading(false)
     }
@@ -217,6 +326,8 @@ export default function CertificatePage() {
       title: certificateTitle,
       subtitle: certificateSubtitle,
       description,
+      seal: selectedSeal,
+      dividerStyle: selectedDivider,
       customTheme: activeTheme,
     })
     setSelectedTemplateId(saved.id)
@@ -234,6 +345,8 @@ export default function CertificatePage() {
     signatory,
     title: certificateTitle,
     subtitle: certificateSubtitle,
+    seal: selectedSeal,
+    dividerStyle: selectedDivider,
     customTheme: activeTheme,
   }
 
@@ -415,11 +528,84 @@ export default function CertificatePage() {
                 signatory={signatory}
                 title={certificateTitle}
                 subtitle={certificateSubtitle}
+                seal={selectedSeal}
+                dividerStyle={selectedDivider}
                 customTheme={activeTheme}
               />
             </div>
           </div>
         </div>
+
+        {/* AI MAGICIAN DRAWER (Optional low-token quick generator) */}
+        {canUseAi && (
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.82)',
+              borderRadius: 18,
+              border: '1px solid rgba(157, 124, 255, 0.25)',
+              padding: '12px 14px',
+              boxShadow: '0 4px 16px rgba(157, 124, 255, 0.08)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+              }}
+              onClick={() => setAiMagicianOpen(!aiMagicianOpen)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span style={{ fontSize: 16 }}>🪄</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: '#6f3fc8' }}>
+                  AI Magician (Quick Draft to Certificate)
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: 'var(--warm-gray)' }}>
+                {aiMagicianOpen ? '▲ Close' : '▼ Expand'}
+              </span>
+            </div>
+
+            {aiMagicianOpen && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p style={{ margin: 0, fontSize: 11.5, color: 'var(--warm-gray)' }}>
+                  Type rough notes (e.g. <em>&quot;tea cakes for Simran&quot;</em> or <em>&quot;eggless brownies&quot;</em>) and AI will structure the course title and commendation with ~40 tokens:
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="e.g. Artisanal sourdough bread for Rohan"
+                    value={aiMagicianInput}
+                    onChange={(e) => setAiMagicianInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleRunAiMagician()}
+                    className="input-field"
+                    style={{ flex: 1, fontSize: 12.5 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRunAiMagician}
+                    disabled={aiLoading || !aiMagicianInput.trim()}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
+                      color: 'white',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: (aiLoading || !aiMagicianInput.trim()) ? 'default' : 'pointer',
+                      opacity: (aiLoading || !aiMagicianInput.trim()) ? 0.6 : 1,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {aiLoading ? 'Generating…' : 'Generate'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* INPUT VARIABLES FORM CARD */}
         <div
@@ -436,20 +622,147 @@ export default function CertificatePage() {
             gap: 14,
           }}
         >
-          {/* Student Name */}
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 6 }}>
-              Student Name * (Calligraphy)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Parleen Kaur"
-              value={studentName}
-              onChange={(e) => setStudentName(e.target.value)}
-              className="input-field"
-              style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
-            />
+          {/* Mode Switcher: Single Student vs Batch List */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Student Mode
+            </span>
+            <div style={{ display: 'flex', background: 'rgba(151, 145, 190, 0.12)', borderRadius: 10, padding: 3, gap: 4 }}>
+              <button
+                type="button"
+                onClick={() => setIsBatchMode(false)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: !isBatchMode ? '#fff' : 'transparent',
+                  color: !isBatchMode ? 'var(--charcoal)' : 'var(--warm-gray)',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: !isBatchMode ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                👤 Single
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBatchMode(true)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: isBatchMode ? '#fff' : 'transparent',
+                  color: isBatchMode ? '#9d7cff' : 'var(--warm-gray)',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: isBatchMode ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                👥 Batch List
+              </button>
+            </div>
           </div>
+
+          {/* If Batch Mode is active */}
+          {isBatchMode ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {batchList.length > 0 && (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg, rgba(255, 143, 220, 0.15), rgba(157, 124, 255, 0.15))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#6f3fc8' }}>
+                    Student {batchIndex + 1} of {batchList.length}: <strong>{batchList[batchIndex]}</strong>
+                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={handlePrevBatchStudent}
+                      disabled={batchIndex === 0}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid rgba(157, 124, 255, 0.3)',
+                        background: '#fff',
+                        fontSize: 11,
+                        cursor: batchIndex === 0 ? 'default' : 'pointer',
+                        opacity: batchIndex === 0 ? 0.4 : 1,
+                      }}
+                    >
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextBatchStudent}
+                      disabled={batchIndex === batchList.length - 1}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid rgba(157, 124, 255, 0.3)',
+                        background: '#fff',
+                        fontSize: 11,
+                        cursor: batchIndex === batchList.length - 1 ? 'default' : 'pointer',
+                        opacity: batchIndex === batchList.length - 1 ? 0.4 : 1,
+                      }}
+                    >
+                      ▶
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <label style={{ fontSize: 11.5, color: 'var(--warm-gray)' }}>
+                Paste student names from WhatsApp or notes (separated by commas or lines):
+              </label>
+              <textarea
+                rows={3}
+                placeholder="1. Simranjit Kaur&#10;2. Aman Sharma&#10;3. Jasleen Kaur"
+                value={batchRawText}
+                onChange={(e) => setBatchRawText(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', fontSize: 12.5, resize: 'vertical' }}
+              />
+              <button
+                type="button"
+                onClick={handleLoadBatch}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(157, 124, 255, 0.4)',
+                  background: 'rgba(157, 124, 255, 0.1)',
+                  color: '#6f3fc8',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Load Students (0 AI Tokens)
+              </button>
+            </div>
+          ) : (
+            /* Student Name Single Input */
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 6 }}>
+                Student Name * (Calligraphy)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Parleen Kaur"
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
+              />
+            </div>
+          )}
 
           {/* Course Name */}
           <div>
@@ -526,55 +839,38 @@ export default function CertificatePage() {
 
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 6 }}>
-                Signatory Title
+                Signatory Line
               </label>
-              <input
-                type="text"
-                value={signatory}
-                onChange={(e) => setSignatory(e.target.value)}
-                className="input-field"
-                style={{ width: '100%', fontSize: 13 }}
-              />
+              <div
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: 12,
+                  background: 'rgba(240, 238, 245, 0.6)',
+                  border: '1px dashed rgba(151, 145, 190, 0.3)',
+                  fontSize: 12,
+                  color: 'var(--warm-gray)',
+                  fontWeight: 600,
+                  lineHeight: 1.3,
+                }}
+              >
+                ✍️ Blank for physical ink signature
+              </div>
             </div>
           </div>
 
-          {/* Description with Token-Efficient AI Polish */}
+          {/* Description & Tone Styler Chips */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)' }}>
                 Commendation Wording
               </label>
 
-              {canUseAi && (
-                <button
-                  type="button"
-                  onClick={handleAiPolishDescription}
-                  disabled={aiLoading}
-                  style={{
-                    padding: '4px 9px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(157, 124, 255, 0.35)',
-                    background: 'linear-gradient(135deg, rgba(255, 143, 220, 0.15), rgba(157, 124, 255, 0.2))',
-                    color: '#6f3fc8',
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    cursor: aiLoading ? 'default' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}
-                >
-                  <span>{aiLoading ? '⏳' : '🪄'}</span>
-                  {aiLoading ? 'Polishing…' : 'AI Polish Wording'}
-                </button>
+              {aiSuccessMsg && (
+                <span style={{ fontSize: 11.5, color: '#15803d', fontWeight: 600 }}>
+                  {aiSuccessMsg}
+                </span>
               )}
             </div>
-
-            {aiSuccessMsg && (
-              <p style={{ margin: '0 0 6px', fontSize: 11.5, color: '#15803d', fontWeight: 600 }}>
-                {aiSuccessMsg}
-              </p>
-            )}
 
             <textarea
               rows={3}
@@ -583,9 +879,88 @@ export default function CertificatePage() {
               className="input-field"
               style={{ width: '100%', fontSize: 13, lineHeight: 1.5, resize: 'vertical' }}
             />
+
+            {/* Quick 1-Tap Tone Selector Chips (Low token: ~30 tokens each) */}
+            {canUseAi && (
+              <div style={{ marginTop: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--warm-gray)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  ⚡ AI Tone Rephrase (~30 tokens):
+                </span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 5 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleAiTonePolish('masterclass')}
+                    disabled={aiLoading}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(157, 124, 255, 0.3)',
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      color: '#6f3fc8',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: aiLoading ? 'default' : 'pointer',
+                    }}
+                  >
+                    👑 Masterclass
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAiTonePolish('sweet')}
+                    disabled={aiLoading}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255, 143, 220, 0.35)',
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      color: 'var(--rose)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: aiLoading ? 'default' : 'pointer',
+                    }}
+                  >
+                    💖 Sweet & Warm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAiTonePolish('kids')}
+                    disabled={aiLoading}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      color: '#b45309',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: aiLoading ? 'default' : 'pointer',
+                    }}
+                  >
+                    🧁 Junior Baker
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAiTonePolish('formal')}
+                    disabled={aiLoading}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      color: '#1d4ed8',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: aiLoading ? 'default' : 'pointer',
+                    }}
+                  >
+                    📜 Formal
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Customize Design & Template Settings Button */}
+          {/* Customize Design & Embellishments Modal Trigger */}
           <div style={{ paddingTop: 4 }}>
             <button
               type="button"
@@ -606,14 +981,14 @@ export default function CertificatePage() {
                 gap: 6,
               }}
             >
-              <span>🎨</span> Customize Colors & Template Design
+              <span>🎨</span> Customize Gold Seals, Dividers & Colors
             </button>
           </div>
         </div>
 
         {/* PRIMARY ACTION BUTTONS */}
         <div style={{ display: 'flex', gap: 10 }}>
-          {/* Next Student (Batch Issuing) */}
+          {/* Next Student */}
           <button
             type="button"
             onClick={handleNextStudent}
@@ -659,7 +1034,7 @@ export default function CertificatePage() {
               boxShadow: '0 8px 22px rgba(142, 106, 232, 0.32)',
             }}
           >
-            <span>📜</span> Preview & Download PDF
+            <span>📜</span> Preview & Share File
           </button>
         </div>
       </div>
@@ -684,7 +1059,7 @@ export default function CertificatePage() {
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: 420,
+              maxWidth: 440,
               maxHeight: '90dvh',
               overflowY: 'auto',
               background: 'rgba(255, 255, 255, 0.98)',
@@ -693,12 +1068,12 @@ export default function CertificatePage() {
               boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 14,
+              gap: 16,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--charcoal)', fontFamily: 'var(--font-display)' }}>
-                Customize Certificate Design
+                Customize Seals & Style
               </h3>
               <button
                 type="button"
@@ -714,6 +1089,78 @@ export default function CertificatePage() {
               >
                 ✕
               </button>
+            </div>
+
+            {/* Embossed Gold Seal Selection */}
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 8 }}>
+                Embossed Gold Seal / Badge
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {SEAL_OPTIONS.map((sealOpt) => {
+                  const isSelected = selectedSeal === sealOpt.id
+                  return (
+                    <button
+                      key={sealOpt.id}
+                      type="button"
+                      onClick={() => setSelectedSeal(sealOpt.id)}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: 12,
+                        border: isSelected ? '1.5px solid #9d7cff' : '1px solid rgba(151, 145, 190, 0.25)',
+                        background: isSelected
+                          ? 'linear-gradient(135deg, rgba(255, 143, 220, 0.15), rgba(157, 124, 255, 0.2))'
+                          : 'rgba(255, 255, 255, 0.8)',
+                        color: isSelected ? '#6f3fc8' : 'var(--charcoal)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span>{sealOpt.icon}</span> {sealOpt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Divider Style Selection */}
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 8 }}>
+                Divider Motif Style
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {DIVIDER_OPTIONS.map((divOpt) => {
+                  const isSelected = selectedDivider === divOpt.id
+                  return (
+                    <button
+                      key={divOpt.id}
+                      type="button"
+                      onClick={() => setSelectedDivider(divOpt.id)}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: 12,
+                        border: isSelected ? '1.5px solid #9d7cff' : '1px solid rgba(151, 145, 190, 0.25)',
+                        background: isSelected
+                          ? 'linear-gradient(135deg, rgba(255, 143, 220, 0.15), rgba(157, 124, 255, 0.2))'
+                          : 'rgba(255, 255, 255, 0.8)',
+                        color: isSelected ? '#6f3fc8' : 'var(--charcoal)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span>{divOpt.icon}</span> {divOpt.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Color Themes */}
@@ -753,91 +1200,44 @@ export default function CertificatePage() {
               </div>
             </div>
 
-            {/* Title & Subtitle */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 4 }}>
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={certificateTitle}
-                  onChange={(e) => setCertificateTitle(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%', fontSize: 12 }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 4 }}>
-                  Subtitle
-                </label>
-                <input
-                  type="text"
-                  value={certificateSubtitle}
-                  onChange={(e) => setCertificateSubtitle(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%', fontSize: 12 }}
-                />
-              </div>
-            </div>
-
-            {/* Save As New Template */}
-            <div style={{ paddingTop: 8, borderTop: '1px solid rgba(151, 145, 190, 0.15)' }}>
-              <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 4 }}>
-                Save As Reusable Template (Optional)
+            {/* Save Template for later */}
+            <div style={{ borderTop: '1px solid rgba(151, 145, 190, 0.18)', paddingTop: 14 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--warm-gray)', marginBottom: 6 }}>
+                Save as New Preset Template
               </label>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   type="text"
-                  placeholder="e.g. Masterclass Gold Template"
+                  placeholder="e.g. Sourdough Masterclass"
                   value={newTemplateName}
                   onChange={(e) => setNewTemplateName(e.target.value)}
                   className="input-field"
-                  style={{ flex: 1, fontSize: 12 }}
+                  style={{ flex: 1, fontSize: 12.5 }}
                 />
                 <button
                   type="button"
                   onClick={handleSaveAsTemplate}
                   style={{
-                    padding: '8px 12px',
-                    borderRadius: 12,
+                    padding: '8px 14px',
+                    borderRadius: 10,
                     border: 'none',
                     background: 'linear-gradient(135deg, #ff8fdc, #9d7cff)',
                     color: 'white',
-                    fontSize: 12,
+                    fontSize: 12.5,
                     fontWeight: 700,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  Save
+                  Save Preset
                 </button>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowCustomizeModal(false)}
-              style={{
-                marginTop: 4,
-                padding: '10px',
-                borderRadius: 12,
-                border: 'none',
-                background: 'rgba(151, 145, 190, 0.15)',
-                color: 'var(--warm-gray)',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Done & Apply
-            </button>
           </div>
         </div>
       )}
 
-      {/* PDF PREVIEW MODAL */}
+      {/* FULLSCREEN PREVIEW & EXPORT MODAL */}
       <CertificatePreviewModal
         isOpen={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
@@ -846,4 +1246,3 @@ export default function CertificatePage() {
     </div>
   )
 }
-

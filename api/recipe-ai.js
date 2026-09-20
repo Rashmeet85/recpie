@@ -342,25 +342,46 @@ ${options.text ? `Pasted Recipe Content:\n${options.text}` : 'Analyze the attach
         },
       }
 
-    case 'enhanceCertificateDescription':
-      return {
-        prompt: `You are an expert culinary certificate writer for Kaur's Cakery. Write a concise, elegant, 1-2 sentence completion commendation for a student completing the course "${options?.course || 'Baking & Pastry'}".
-CRITICAL RULES:
-- Return JSON only.
-- Length: STRICTLY 15 to 30 words max.
-- Do NOT include student name or course name in the output; write only the commendation body sentence (e.g., "and has demonstrated dedication, creativity and skill in learning the art of cake icing and decoration.").
-- Tone: Formal, encouraging, culinary excellence.
+    case 'enhanceCertificateDescription': {
+      const tone = options?.tone || 'masterclass'
+      let toneDirective = 'Formal, prestigious pastry academy excellence.'
+      if (tone === 'sweet') toneDirective = 'Warm, joyful, sweet encouragement for passionate home baking.'
+      if (tone === 'kids') toneDirective = 'Cheerful, celebratory, creative junior baker commendation.'
+      if (tone === 'formal') toneDirective = 'Accredited, professional culinary competency.'
 
-Draft input: ${options?.draft || ''}`,
+      return {
+        prompt: `Culinary certificate writer for Kaur's Cakery. Write a 1-sentence completion commendation for course: "${options?.course || 'Baking Workshop'}".
+RULES: JSON only. STRICTLY 15-25 words. Tone: ${toneDirective}. Do NOT repeat the course name. Must begin with "and has...".
+Draft input: "${options?.draft || ''}"`,
         schema: {
           type: 'OBJECT',
           properties: {
             description: {
               type: 'STRING',
-              description: 'A 15-30 word formal culinary certificate commendation.',
+              description: 'A 15-25 word commendation starting with "and has".',
             },
           },
           required: ['description'],
+        },
+      }
+    }
+
+    case 'magicCertificate':
+      return {
+        prompt: `Transform rough baking workshop notes into formal certificate details for Kaur's Cakery.
+Input: "${options?.rawText || ''}"
+RULES: JSON only.
+- course: Formal, regal uppercase title (e.g. "ARTISAN TEA TIME CAKES & PASTRIES", "ICING CAKE MASTERCLASS"). Max 5 words.
+- description: 1 elegant commendation sentence starting with "and has...". Max 25 words.
+- studentName: Extracted student name with Proper Capitalization, or "" if not mentioned.`,
+        schema: {
+          type: 'OBJECT',
+          properties: {
+            course: { type: 'STRING', description: 'Uppercase formal course title' },
+            description: { type: 'STRING', description: '15-25 word commendation sentence' },
+            studentName: { type: 'STRING', description: 'Student name if found' },
+          },
+          required: ['course', 'description'],
         },
       }
 
